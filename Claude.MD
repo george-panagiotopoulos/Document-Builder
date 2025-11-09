@@ -62,3 +62,79 @@
 
 10. **Performance**: Be mindful of performance targets defined in design documents. Use async processing for long-running operations. Implement caching where appropriate (as specified in design docs).
 
+## Git Worktree Workflow
+
+This project uses Git worktrees to enable parallel development across multiple components. Each feature branch has its own working directory under `worktrees/`.
+
+### Available Worktrees
+
+- `worktrees/tooling` → `feature/tooling` (Repository setup, schemas, tooling)
+- `worktrees/content-intake` → `feature/content-intake` (Component A)
+- `worktrees/gestalt-engine` → `feature/gestalt-engine` (Component B)
+- `worktrees/document-formatter` → `feature/document-formatter` (Component C)
+- `worktrees/user-agent` → `feature/user-agent` (Orchestrator)
+- `worktrees/testing` → `feature/testing` (Shared testing infrastructure)
+- `worktrees/operations` → `feature/operations` (Deployment & operations)
+
+### Working in a Worktree
+
+1. **Navigate to worktree directory**:
+   ```bash
+   cd worktrees/content-intake
+   # You're now on feature/content-intake branch
+   ```
+
+2. **Normal git operations**: Work, commit, push as usual - all operations are isolated to that branch.
+
+3. **Switching contexts**: No need to stash or commit - just `cd` to another worktree directory.
+
+### Merging Worktrees Back to Main
+
+**Recommended merge order** (based on dependencies):
+1. `feature/tooling` (foundation)
+2. `feature/content-intake` (Component A)
+3. `feature/gestalt-engine` (Component B - depends on A)
+4. `feature/document-formatter` (Component C - depends on B)
+5. `feature/user-agent` (depends on A, B, C)
+6. `feature/testing` (can merge incrementally)
+7. `feature/operations` (deployment - merge last)
+
+**Merge process**:
+```bash
+# 1. Complete work in worktree
+cd worktrees/content-intake
+git add .
+git commit -m "Complete feature implementation"
+git push origin feature/content-intake
+
+# 2. Switch to main and update
+cd /path/to/Document-Builder  # Main repo directory
+git checkout main
+git pull origin main
+
+# 3. Merge feature branch
+git merge feature/content-intake
+
+# 4. Test merged code, then push
+git push origin main
+
+# 5. Update dependent worktrees
+cd worktrees/gestalt-engine
+git fetch origin
+git merge origin/main  # Get latest merged changes
+
+# 6. Clean up (optional - after merge is complete)
+cd /path/to/Document-Builder
+git branch -d feature/content-intake
+git push origin --delete feature/content-intake
+git worktree remove worktrees/content-intake
+```
+
+### Best Practices
+
+1. **Keep feature branches synced**: Regularly merge `origin/main` into your feature branch to avoid large conflicts.
+2. **One branch per worktree**: Each branch can only be checked out in one worktree at a time.
+3. **Worktrees share repository**: Commits, branches, and remotes are shared across all worktrees.
+4. **Use Pull Requests**: For collaboration, create PRs on GitHub before merging to main.
+5. **List worktrees**: Use `git worktree list` to see all active worktrees and their branches.
+
