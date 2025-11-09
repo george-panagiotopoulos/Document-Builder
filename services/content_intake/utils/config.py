@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     # CORS configuration
     CORS_ORIGINS: list[str] = ["*"]
 
-    # Database configuration (placeholder for future PostgreSQL integration)
-    DATABASE_URL: str = "sqlite:///./intake.db"
+    # Database configuration - PostgreSQL
+    DATABASE_URL: str = "postgresql://docbuilder:changeme@localhost:5432/document_builder"
 
     # Object storage configuration (placeholder)
     STORAGE_BUCKET: str = "document-builder-assets"
