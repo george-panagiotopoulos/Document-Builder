@@ -1,0 +1,57 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'document-builder-prod'
+    environment: 'production'
+
+scrape_configs:
+  - job_name: 'content-intake'
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names:
+            - document-builder
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        action: keep
+        regex: content-intake
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+      - source_labels: [__meta_kubernetes_namespace]
+        target_label: namespace
+
+  - job_name: 'gestalt-engine'
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names:
+            - document-builder
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        action: keep
+        regex: gestalt-engine
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+
+  - job_name: 'document-formatter'
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names:
+            - document-builder
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        action: keep
+        regex: document-formatter
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+rule_files:
+  - '/etc/prometheus/alerts/*.yml'
