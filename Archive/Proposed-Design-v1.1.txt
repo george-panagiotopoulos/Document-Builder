@@ -1,0 +1,1364 @@
+PROPOSED DESIGN DOCUMENT - Document Builder v1.1
+==================================================
+
+REVIEW OF PROPOSED APPROACH
+----------------------------
+
+Your proposed three-stage pipeline is well-structured and follows a logical separation of concerns:
+
+1. INPUT STAGE: Content + Intent
+   - Text and images (raw content)
+   - Purpose/goals/constraints (design intent)
+   ✓ Good: Separates content from presentation logic
+
+2. GESTALT/LAYOUT STAGE: Design Intelligence
+   - Parses and analyzes content
+   - Applies design principles
+   - Generates layout specifications
+   ✓ Good: Centralizes design logic in one component
+   ✓ Good: Can leverage AI for intelligent layout decisions
+
+3. FORMATTING STAGE: Document Generation
+   - Takes layout specifications
+   - Generates Word/PPT using python-docx/python-pptx
+   ✓ Good: Clean separation - formatter is "dumb" executor
+
+STRENGTHS OF THIS APPROACH:
+- Clear separation of concerns
+- Reusable Gestalt component (can be used for other formats)
+- Design logic is centralized and testable
+- Can iterate on design without touching formatter code
+- AI can enhance the Gestalt component without affecting formatters
+
+POTENTIAL CONSIDERATIONS:
+- Need to define a clear data structure/schema for layout specifications
+- Gestalt component needs to understand constraints of python-pptx/python-docx
+- Error handling when layout suggestions can't be implemented
+- Versioning of layout specifications if format changes
+
+
+SUGGESTED ARCHITECTURE
+======================
+
+COMPONENT STRUCTURE
+-------------------
+
+┌─────────────────────────────────────────────────────────────┐
+│                    INPUT PROCESSOR                           │
+│  - Validates input (text, images, metadata)                  │
+│  - Normalizes content (extracts structure, identifies types) │
+│  - Prepares content for analysis                             │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────┐
+│              GESTALT DESIGN ENGINE                           │
+│                                                               │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  Content Analyzer                                    │    │
+│  │  - Analyzes text structure (headings, lists, etc.)   │    │
+│  │  - Identifies content types (narrative, data, etc.)  │    │
+│  │  - Extracts semantic meaning                         │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                       │                                       │
+│                       ▼                                       │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  Design Principles Engine                            │    │
+│  │  - Applies Gestalt principles                        │    │
+│  │  - Calculates optimal sizing/spacing                 │    │
+│  │  - Determines visual hierarchy                       │    │
+│  │  - Suggests color schemes                            │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                       │                                       │
+│                       ▼                                       │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  Layout Generator (AI-Enhanced)                      │    │
+│  │  - Word: Generates document structure/outline        │    │
+│  │  - PPT: Generates slide layouts and content mapping  │    │
+│  │  - Considers constraints and goals                    │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                       │                                       │
+│                       ▼                                       │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  Layout Specification Builder                        │    │
+│  │  - Creates structured layout spec (JSON/YAML)        │    │
+│  │  - Includes all positioning, sizing, styling info     │    │
+│  └─────────────────────────────────────────────────────┘    │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────┐
+│              DOCUMENT FORMATTERS                             │
+│                                                               │
+│  ┌──────────────────┐      ┌──────────────────┐            │
+│  │  Word Formatter   │      │  PPT Formatter   │            │
+│  │  (python-docx)    │      │  (python-pptx)   │            │
+│  │                   │      │                  │            │
+│  │  - Reads layout   │      │  - Reads layout  │            │
+│  │    spec           │      │    spec          │            │
+│  │  - Generates .docx│      │  - Generates .pptx│           │
+│  └──────────────────┘      └──────────────────┘            │
+└─────────────────────────────────────────────────────────────┘
+
+
+DATA FLOW & SCHEMAS
+-------------------
+
+INPUT SCHEMA (Stage 1):
+{
+  "content": {
+    "text": [
+      {
+        "id": "text-001",
+        "type": "heading|paragraph|list|quote|table",
+        "content": "...",
+        "level": 1,  // for headings
+        "metadata": {}
+      }
+    ],
+    "images": [
+      {
+        "id": "img-001",
+        "path": "...",
+        "alt_text": "...",
+        "dimensions": {"width": 1920, "height": 1080},
+        "purpose": "illustration|diagram|chart|photo"
+      }
+    ]
+  },
+  "design_intent": {
+    "purpose": "report|presentation|proposal|manual",
+    "audience": "executives|technical|general",
+    "goals": ["clarity", "professional", "engaging"],
+    "constraints": {
+      "max_pages": 10,
+      "color_scheme": "corporate|creative|minimal",
+      "brand_guidelines": {...}
+    }
+  }
+}
+
+LAYOUT SPECIFICATION SCHEMA (Stage 2 → Stage 3):
+{
+  "document_type": "word|powerpoint",
+  "metadata": {
+    "title": "...",
+    "author": "...",
+    "theme": "..."
+  },
+  "structure": [
+    {
+      "type": "section|slide|page",
+      "id": "section-001",
+      "layout": {
+        "template": "title-slide|content-slide|two-column",
+        "elements": [
+          {
+            "id": "elem-001",
+            "type": "text|image|table|chart|shape",
+            "content_ref": "text-001",  // references input
+            "position": {
+              "x": 0.5,  // inches or percentage
+              "y": 1.0,
+              "width": 6.0,
+              "height": 2.0
+            },
+            "styling": {
+              "font": {"family": "Arial", "size": 24, "weight": "bold"},
+              "color": "#333333",
+              "alignment": "left|center|right",
+              "spacing": {"top": 0.5, "bottom": 0.5, "left": 0.5, "right": 0.5}
+            },
+            "gestalt_rules": {
+              "hierarchy_level": 1,
+              "group_id": "header-group",
+              "proximity_group": "main-content"
+            }
+          }
+        ],
+        "spacing": {
+          "margins": {"top": 0.5, "bottom": 0.5, "left": 1.0, "right": 1.0},
+          "grid": {"columns": 12, "gutter": 0.25}  // 12-column grid system
+        }
+      }
+    }
+  ],
+  "design_rationale": {
+    "principles_applied": ["proximity", "similarity", "hierarchy"],
+    "decisions": [
+      {
+        "element": "elem-001",
+        "reason": "Large font size to establish visual hierarchy",
+        "principle": "Gestalt: Figure-Ground"
+      }
+    ]
+  }
+}
+
+
+═══════════════════════════════════════════════════════════════
+SECTION 1: GESTALT DESIGN ENGINE - DETAILED DESIGN
+═══════════════════════════════════════════════════════════════
+
+The Gestalt component is the most complex part of the system. It must translate
+abstract design principles into concrete, implementable specifications.
+
+GESTALT PRINCIPLES - COMPUTATIONAL ALGORITHMS
+----------------------------------------------
+
+1. PROXIMITY PRINCIPLE
+   Purpose: Group related elements by spatial distance
+
+   Algorithm:
+   ```
+   def calculate_proximity_groups(elements):
+       """
+       Uses clustering algorithm to group elements by distance
+       Returns groups that should be visually connected
+       """
+       # Calculate pairwise distances between all elements
+       distances = compute_element_distances(elements)
+
+       # Apply threshold-based clustering
+       # Threshold = 1.5x average element height (adaptive)
+       threshold = calculate_adaptive_threshold(elements)
+
+       # Elements closer than threshold belong to same group
+       groups = cluster_by_distance(elements, threshold)
+
+       # Assign group IDs and spacing rules
+       for group in groups:
+           # Inter-group spacing: 2-3x intra-group spacing
+           group.internal_spacing = threshold * 0.3
+           group.external_spacing = threshold * 2.5
+
+       return groups
+   ```
+
+   Measurable Output:
+   - proximity_group: "group-A", "group-B", etc.
+   - spacing_multiplier: 1.0 (within group) vs 2.5-3.0 (between groups)
+
+2. SIMILARITY PRINCIPLE
+   Purpose: Elements with similar styling are perceived as related
+
+   Algorithm:
+   ```
+   def apply_similarity_styling(elements, content_types):
+       """
+       Assigns consistent styling to similar content types
+       """
+       # Define style families
+       style_families = {
+           'heading': {
+               'level-1': {'size': 28, 'weight': 'bold', 'color': '#1a1a1a'},
+               'level-2': {'size': 22, 'weight': 'bold', 'color': '#333333'},
+               'level-3': {'size': 18, 'weight': 'semibold', 'color': '#4a4a4a'}
+           },
+           'body': {
+               'paragraph': {'size': 11, 'weight': 'normal', 'color': '#333333'},
+               'list': {'size': 11, 'weight': 'normal', 'color': '#333333'},
+               'caption': {'size': 9, 'weight': 'normal', 'color': '#666666'}
+           },
+           'emphasis': {
+               'quote': {'size': 12, 'weight': 'italic', 'color': '#555555'},
+               'callout': {'size': 11, 'weight': 'medium', 'color': '#0066cc'}
+           }
+       }
+
+       # Apply consistent styling within families
+       for element in elements:
+           family, type = classify_element(element)
+           element.styling = style_families[family][type]
+
+       return elements
+   ```
+
+   Measurable Output:
+   - style_family: "heading-1", "body-paragraph", etc.
+   - consistency_score: % of elements following family rules
+
+3. VISUAL HIERARCHY PRINCIPLE
+   Purpose: Size and positioning indicate importance
+
+   Algorithm:
+   ```
+   def establish_visual_hierarchy(elements):
+       """
+       Uses mathematical ratios to create clear size relationships
+       """
+       # Use modular scale (1.25 ratio for subtle, 1.618 for dramatic)
+       scale_ratio = 1.333  # Perfect fourth (musical harmony)
+       base_size = 11  # Base font size in points
+
+       # Calculate type scale
+       hierarchy_sizes = {
+           1: base_size * (scale_ratio ** 3),  # ~26pt
+           2: base_size * (scale_ratio ** 2),  # ~19pt
+           3: base_size * (scale_ratio ** 1),  # ~15pt
+           4: base_size * (scale_ratio ** 0),  # ~11pt
+           5: base_size * (scale_ratio ** -1)  # ~8pt
+       }
+
+       # Calculate spatial hierarchy (vertical positioning)
+       # Higher importance = higher on page (lower Y coordinate)
+       def calculate_y_position(importance_level, section_top):
+           y_offsets = {
+               1: section_top + 0.5,   # Title: near top
+               2: section_top + 1.5,   # Subtitle
+               3: section_top + 2.5,   # Section headers
+               4: section_top + 3.0    # Body content
+           }
+           return y_offsets.get(importance_level, section_top + 3.0)
+
+       # Apply hierarchy
+       for element in elements:
+           level = element.hierarchy_level
+           element.font_size = hierarchy_sizes[level]
+           element.y_position = calculate_y_position(level, element.section_top)
+
+       return elements
+   ```
+
+   Measurable Output:
+   - hierarchy_level: 1-5 (1 = most important)
+   - size_ratio: Ratio compared to base size
+   - vertical_position: Y-coordinate based on importance
+
+4. ALIGNMENT & GRID PRINCIPLE
+   Purpose: Elements aligned to common grid create visual order
+
+   Algorithm:
+   ```
+   def apply_grid_alignment(elements, page_width=10.0, page_height=7.5):
+       """
+       Snaps elements to 12-column grid with baseline alignment
+       """
+       # Define 12-column grid (standard responsive design)
+       grid = {
+           'columns': 12,
+           'gutter': 0.2,  # inches
+           'margin': 0.75,  # inches
+           'baseline': 0.25  # baseline grid (line height)
+       }
+
+       # Calculate column width
+       usable_width = page_width - (2 * grid['margin'])
+       total_gutter = grid['gutter'] * (grid['columns'] - 1)
+       column_width = (usable_width - total_gutter) / grid['columns']
+
+       def snap_to_grid(x, width_in_columns):
+           """Snap X position to column boundaries"""
+           column_x = [
+               grid['margin'] + i * (column_width + grid['gutter'])
+               for i in range(grid['columns'])
+           ]
+           # Find closest column start
+           return min(column_x, key=lambda cx: abs(cx - x))
+
+       def snap_to_baseline(y):
+           """Snap Y position to baseline grid"""
+           return round(y / grid['baseline']) * grid['baseline']
+
+       # Apply grid snapping
+       for element in elements:
+           element.x = snap_to_grid(element.x, element.width_columns)
+           element.y = snap_to_baseline(element.y)
+
+           # Calculate width based on column span
+           element.width = (
+               element.width_columns * column_width +
+               (element.width_columns - 1) * grid['gutter']
+           )
+
+       return elements, grid
+   ```
+
+   Measurable Output:
+   - grid_column_start: 1-12
+   - grid_column_span: 1-12
+   - baseline_aligned: true/false
+
+5. WHITESPACE & BREATHING ROOM
+   Purpose: Negative space improves readability and focus
+
+   Algorithm:
+   ```
+   def calculate_whitespace(elements, content_density='medium'):
+       """
+       Applies spacing rules based on content density and importance
+       """
+       # Spacing multipliers based on density preference
+       density_factors = {
+           'tight': 0.7,    # Academic papers, data-heavy
+           'medium': 1.0,   # Standard business docs
+           'airy': 1.5      # Marketing, presentations
+       }
+
+       base_factor = density_factors[content_density]
+
+       # Calculate spacing for each element
+       for element in elements:
+           # Vertical spacing (based on hierarchy)
+           if element.hierarchy_level == 1:  # Title
+               element.space_before = 1.0 * base_factor
+               element.space_after = 0.5 * base_factor
+           elif element.hierarchy_level == 2:  # Heading
+               element.space_before = 0.75 * base_factor
+               element.space_after = 0.3 * base_factor
+           elif element.hierarchy_level >= 3:  # Body
+               element.space_before = 0.3 * base_factor
+               element.space_after = 0.3 * base_factor
+
+           # Line spacing (leading)
+           # Rule: 120-145% of font size for body text
+           if element.type == 'paragraph':
+               element.line_spacing = element.font_size * 1.35
+           else:
+               element.line_spacing = element.font_size * 1.2
+
+           # Margins (external whitespace)
+           # More important elements get more breathing room
+           margin_multiplier = 2.0 - (element.hierarchy_level * 0.2)
+           element.margin = 0.5 * margin_multiplier * base_factor
+
+       return elements
+   ```
+
+   Measurable Output:
+   - space_before: inches
+   - space_after: inches
+   - line_spacing: points
+   - margin: inches
+
+6. COLOR & CONTRAST
+   Purpose: Ensure readability and visual emphasis
+
+   Algorithm:
+   ```
+   def calculate_color_scheme(brand_colors, purpose):
+       """
+       Generates accessible color palette with proper contrast
+       """
+       import colorsys
+
+       def check_contrast_ratio(fg, bg):
+           """Calculate WCAG contrast ratio"""
+           # Simplified: Real implementation would use relative luminance
+           return calculate_luminance_ratio(fg, bg)
+
+       # Generate palette from brand color
+       primary = brand_colors.get('primary', '#0066cc')
+
+       # Extract HSL values
+       h, s, l = rgb_to_hsl(primary)
+
+       palette = {
+           'primary': primary,
+           'primary_dark': hsl_to_rgb(h, s, l * 0.7),    # Darker variant
+           'primary_light': hsl_to_rgb(h, s * 0.3, 0.95), # Light bg
+           'text_primary': '#1a1a1a',    # Near black
+           'text_secondary': '#4a4a4a',  # Medium gray
+           'text_tertiary': '#767676',   # Light gray
+           'background': '#ffffff',
+           'background_alt': '#f5f5f5'
+       }
+
+       # Validate contrast ratios (WCAG AA: 4.5:1 for normal text)
+       for text_color in ['text_primary', 'text_secondary']:
+           ratio = check_contrast_ratio(palette[text_color], palette['background'])
+           if ratio < 4.5:
+               # Adjust until contrast is sufficient
+               palette[text_color] = adjust_for_contrast(palette[text_color])
+
+       return palette
+   ```
+
+   Measurable Output:
+   - color_palette: Dictionary of hex colors
+   - contrast_ratios: Validation scores
+   - accessibility_level: "WCAG AA" or "WCAG AAA"
+
+
+GESTALT DECISION ENGINE - RULE-BASED CORE
+------------------------------------------
+
+This is the deterministic foundation that always produces good layouts.
+
+```
+class GestaltDecisionEngine:
+    """
+    Core rule-based system for layout decisions
+    Operates independently of AI (fast, predictable, testable)
+    """
+
+    def analyze_content_structure(self, content):
+        """
+        Analyzes content to determine logical structure
+        Returns: sections, hierarchy, content types
+        """
+        structure = {
+            'sections': [],
+            'hierarchy': {},
+            'content_types': {}
+        }
+
+        # Pattern matching for structure detection
+        for text_element in content['text']:
+            # Detect headings by patterns
+            if text_element['type'] == 'heading':
+                level = text_element.get('level', 1)
+                structure['hierarchy'][text_element['id']] = level
+
+                # Start new section on level-1 headings
+                if level == 1:
+                    structure['sections'].append({
+                        'id': f"section-{len(structure['sections']) + 1}",
+                        'title': text_element['content'],
+                        'elements': []
+                    })
+
+            # Classify content type by characteristics
+            content_length = len(text_element.get('content', ''))
+
+            if text_element['type'] == 'list':
+                structure['content_types'][text_element['id']] = 'enumeration'
+            elif content_length < 100:
+                structure['content_types'][text_element['id']] = 'short_form'
+            elif content_length > 500:
+                structure['content_types'][text_element['id']] = 'long_form'
+            else:
+                structure['content_types'][text_element['id']] = 'medium_form'
+
+        return structure
+
+    def select_layout_template(self, section, document_type):
+        """
+        Rule-based template selection based on content characteristics
+        """
+        if document_type == 'powerpoint':
+            return self._select_slide_template(section)
+        else:
+            return self._select_page_template(section)
+
+    def _select_slide_template(self, section):
+        """
+        PowerPoint slide templates based on content
+        """
+        # Count element types
+        has_image = any(e['type'] == 'image' for e in section['elements'])
+        has_list = any(e['type'] == 'list' for e in section['elements'])
+        text_count = sum(1 for e in section['elements'] if e['type'] in ['paragraph', 'heading'])
+
+        # Decision tree for template selection
+        if section.get('is_first_section'):
+            return 'title_slide'
+        elif has_image and text_count <= 2:
+            return 'image_with_caption'
+        elif has_list and not has_image:
+            return 'bullet_list'
+        elif has_image and text_count > 2:
+            return 'two_column_image_text'
+        elif text_count > 5:
+            return 'text_heavy'  # Multiple columns or smaller font
+        else:
+            return 'standard_content'
+
+    def generate_layout_spec(self, content, design_intent):
+        """
+        Main entry point: Generates complete layout specification
+        """
+        # Step 1: Analyze structure
+        structure = self.analyze_content_structure(content)
+
+        # Step 2: Apply Gestalt principles
+        elements_with_gestalt = []
+        for section in structure['sections']:
+            # Group by proximity
+            groups = calculate_proximity_groups(section['elements'])
+
+            # Apply hierarchy
+            hierarchical_elements = establish_visual_hierarchy(section['elements'])
+
+            # Apply similarity styling
+            styled_elements = apply_similarity_styling(hierarchical_elements)
+
+            # Align to grid
+            aligned_elements, grid = apply_grid_alignment(styled_elements)
+
+            # Calculate whitespace
+            final_elements = calculate_whitespace(aligned_elements)
+
+            elements_with_gestalt.extend(final_elements)
+
+        # Step 3: Select templates
+        document_type = design_intent.get('output_format', 'powerpoint')
+        for section in structure['sections']:
+            section['template'] = self.select_layout_template(section, document_type)
+
+        # Step 4: Build layout specification
+        layout_spec = self.build_layout_specification(
+            structure,
+            elements_with_gestalt,
+            design_intent
+        )
+
+        return layout_spec
+```
+
+
+═══════════════════════════════════════════════════════════════
+SECTION 2: AI INTEGRATION - HYBRID ARCHITECTURE
+═══════════════════════════════════════════════════════════════
+
+AI enhances the rule-based system but never operates alone.
+
+AI INTEGRATION PATTERN: ADVISOR + VALIDATOR
+--------------------------------------------
+
+```
+class AILayoutAdvisor:
+    """
+    AI provides creative suggestions, rule-based system validates
+    Falls back to pure rules if AI unavailable
+    """
+
+    def __init__(self, llm_client=None):
+        self.llm = llm_client
+        self.rule_engine = GestaltDecisionEngine()
+
+    def generate_layout(self, content, design_intent, mode='hybrid'):
+        """
+        mode: 'rule_based' | 'ai_enhanced' | 'hybrid'
+        """
+        # ALWAYS generate rule-based layout first (fallback)
+        rule_based_layout = self.rule_engine.generate_layout_spec(
+            content, design_intent
+        )
+
+        if mode == 'rule_based' or self.llm is None:
+            return rule_based_layout
+
+        # AI Enhancement
+        try:
+            ai_suggestions = self._get_ai_suggestions(content, design_intent)
+
+            # Validate AI suggestions against rules
+            validated_suggestions = self._validate_ai_suggestions(
+                ai_suggestions,
+                rule_based_layout
+            )
+
+            if mode == 'hybrid':
+                # Merge: Use AI for high-level structure, rules for details
+                final_layout = self._merge_layouts(
+                    rule_based_layout,
+                    validated_suggestions
+                )
+            else:  # mode == 'ai_enhanced'
+                final_layout = validated_suggestions
+
+            return final_layout
+
+        except Exception as e:
+            # AI failed - fallback to rules
+            logger.warning(f"AI failed, using rule-based: {e}")
+            return rule_based_layout
+
+    def _get_ai_suggestions(self, content, design_intent):
+        """
+        Prompt LLM for layout suggestions
+        """
+        # Prepare structured prompt
+        prompt = f"""
+        You are a professional presentation designer. Analyze this content and suggest a layout.
+
+        CONTENT SUMMARY:
+        - Number of sections: {len(content['sections'])}
+        - Content types: {content['content_types']}
+        - Images: {len(content['images'])}
+
+        DESIGN INTENT:
+        - Purpose: {design_intent['purpose']}
+        - Audience: {design_intent['audience']}
+        - Goals: {design_intent['goals']}
+
+        TASK:
+        1. Suggest how to break content into slides/pages
+        2. Recommend template for each slide (from: title_slide, bullet_list,
+           two_column_image_text, image_with_caption, text_heavy)
+        3. Suggest visual emphasis (which elements to make prominent)
+        4. Recommend color emphasis for key points
+
+        OUTPUT FORMAT: JSON matching our layout specification schema
+        """
+
+        response = self.llm.generate(prompt, response_format='json')
+        return json.loads(response)
+
+    def _validate_ai_suggestions(self, ai_layout, rule_based_layout):
+        """
+        Validates AI suggestions against design principles and capabilities
+        """
+        validated = copy.deepcopy(ai_layout)
+
+        # Validation checks
+        for section in validated['sections']:
+            # Check 1: Template exists and is supported
+            if section['template'] not in SUPPORTED_TEMPLATES:
+                # Fallback to rule-based template
+                section['template'] = self._find_matching_rule_template(
+                    section, rule_based_layout
+                )
+
+            # Check 2: Validate Gestalt principles
+            for element in section['elements']:
+                # Contrast ratio check
+                if not self._check_contrast(element['color'], section['background']):
+                    element['color'] = self._fix_contrast(element['color'])
+
+                # Hierarchy check (size ratios make sense)
+                if not self._validate_hierarchy(element, section):
+                    element['font_size'] = self._apply_hierarchy_rules(element)
+
+                # Positioning check (fits on page)
+                if not self._fits_on_page(element):
+                    element['position'] = self._reposition_element(element)
+
+        return validated
+
+    def _merge_layouts(self, rule_based, ai_enhanced):
+        """
+        Hybrid approach: AI for structure, rules for styling
+        """
+        merged = copy.deepcopy(rule_based)
+
+        # Take from AI: section breaks, template choices, emphasis
+        merged['sections'] = ai_enhanced['sections']
+
+        # Take from rules: exact positioning, sizing, colors, spacing
+        for i, section in enumerate(merged['sections']):
+            rule_section = rule_based['sections'][i]
+
+            for j, element in enumerate(section['elements']):
+                # Keep AI's template and emphasis decisions
+                # Override with rule-based styling and positioning
+                element['styling'] = rule_section['elements'][j]['styling']
+                element['position'] = rule_section['elements'][j]['position']
+                element['spacing'] = rule_section['elements'][j]['spacing']
+
+        return merged
+```
+
+AI PROMPT ENGINEERING FOR LAYOUT
+---------------------------------
+
+Key principles for effective AI layout generation:
+
+1. STRUCTURED OUTPUT
+   - Always request JSON matching layout spec schema
+   - Provide schema in prompt
+   - Use function calling / structured output features
+
+2. CONSTRAINT SPECIFICATION
+   - Tell AI what templates are available
+   - Specify formatter capabilities (python-pptx limitations)
+   - Provide dimensions (slide size, margins, etc.)
+
+3. EXAMPLES IN PROMPT (Few-shot learning)
+   ```
+   Example good layouts:
+   - Executive presentation: Title slide + 3-5 bullet slides + summary
+   - Technical report: Detailed multi-column with diagrams
+   - Proposal: Visual-heavy with callouts and emphasis
+
+   For this content, suggest...
+   ```
+
+4. DESIGN RATIONALE
+   - Ask AI to explain its choices
+   - Enables debugging and learning
+   - Store in design_rationale field
+
+
+═══════════════════════════════════════════════════════════════
+SECTION 3: GESTALT → FORMATTER INTEGRATION
+═══════════════════════════════════════════════════════════════
+
+The layout specification must be directly executable by python-docx/python-pptx.
+
+FORMATTER CAPABILITIES REGISTRY
+--------------------------------
+
+Critical: Gestalt engine must know what each formatter can/cannot do.
+
+```
+FORMATTER_CAPABILITIES = {
+    'powerpoint': {
+        'library': 'python-pptx',
+        'slide_dimensions': {
+            'width': 10.0,   # inches
+            'height': 7.5    # inches (16:9 ratio)
+        },
+        'supported_layouts': [
+            'blank', 'title', 'title_and_content', 'section_header',
+            'two_content', 'comparison', 'title_only', 'picture_with_caption'
+        ],
+        'positioning': {
+            'system': 'absolute',  # x, y in inches from top-left
+            'origin': 'top-left',
+            'units': 'inches'
+        },
+        'text_capabilities': {
+            'max_fonts_per_slide': None,  # unlimited
+            'supports_columns': True,
+            'supports_text_boxes': True,
+            'supports_tables': True,
+            'bullet_styles': ['disc', 'circle', 'square', 'number', 'roman']
+        },
+        'image_capabilities': {
+            'formats': ['jpg', 'png', 'gif', 'bmp'],
+            'max_size_mb': 50,
+            'supports_crop': True,
+            'supports_transparency': True
+        },
+        'styling_capabilities': {
+            'supports_gradients': True,
+            'supports_shadows': True,
+            'supports_custom_fonts': True,
+            'color_format': 'RGB'
+        },
+        'limitations': [
+            'No automatic text wrapping in shapes (must calculate)',
+            'Limited font fallback',
+            'No built-in responsive layout'
+        ]
+    },
+    'word': {
+        'library': 'python-docx',
+        'page_dimensions': {
+            'width': 8.5,    # inches (US Letter)
+            'height': 11.0
+        },
+        'supported_layouts': [
+            'single_column', 'two_column', 'three_column'
+        ],
+        'positioning': {
+            'system': 'flow',  # Elements flow in document order
+            'origin': 'top-left',
+            'units': 'inches',
+            'notes': 'Limited absolute positioning, mainly flow-based'
+        },
+        'text_capabilities': {
+            'supports_styles': True,  # Built-in style system
+            'supports_columns': True,
+            'supports_text_boxes': True,
+            'supports_tables': True,
+            'heading_levels': 9
+        },
+        'image_capabilities': {
+            'formats': ['jpg', 'png', 'gif', 'bmp', 'svg'],
+            'supports_inline': True,  # Inline with text
+            'supports_floating': True,  # Absolute positioned
+            'wrapping_styles': ['inline', 'square', 'tight', 'through', 'top_bottom']
+        },
+        'styling_capabilities': {
+            'supports_themes': True,
+            'supports_custom_fonts': True,
+            'paragraph_styles': True,
+            'color_format': 'RGB'
+        },
+        'limitations': [
+            'Absolute positioning limited (mainly text boxes)',
+            'Pixel-perfect layout difficult',
+            'Primarily flow-based layout'
+        ]
+    }
+}
+```
+
+TRANSLATION LAYER: LAYOUT SPEC → FORMATTER COMMANDS
+----------------------------------------------------
+
+```
+class PowerPointFormatter:
+    """
+    Translates layout specification into python-pptx calls
+    """
+
+    def __init__(self, layout_spec):
+        self.spec = layout_spec
+        self.prs = Presentation()
+        self.prs.slide_width = Inches(10.0)
+        self.prs.slide_height = Inches(7.5)
+
+    def generate(self):
+        """Main entry point - generates .pptx file"""
+
+        # Apply theme/colors
+        self._apply_theme(self.spec['metadata'])
+
+        # Generate each slide
+        for section in self.spec['structure']:
+            if section['type'] == 'slide':
+                self._create_slide(section)
+
+        return self.prs
+
+    def _create_slide(self, slide_spec):
+        """Creates a single slide from specification"""
+
+        # Select base layout
+        layout_name = self._map_template_to_layout(slide_spec['layout']['template'])
+        slide_layout = self.prs.slide_layouts[layout_name]
+        slide = self.prs.slides.add_slide(slide_layout)
+
+        # Add each element
+        for element_spec in slide_spec['layout']['elements']:
+            self._add_element(slide, element_spec)
+
+        return slide
+
+    def _add_element(self, slide, element_spec):
+        """Adds a single element (text, image, etc.) to slide"""
+
+        elem_type = element_spec['type']
+
+        if elem_type == 'text':
+            self._add_text_box(slide, element_spec)
+        elif elem_type == 'image':
+            self._add_image(slide, element_spec)
+        elif elem_type == 'table':
+            self._add_table(slide, element_spec)
+        elif elem_type == 'shape':
+            self._add_shape(slide, element_spec)
+
+    def _add_text_box(self, slide, spec):
+        """
+        Translates text element specification to python-pptx text box
+        """
+        # Extract positioning (convert to EMU units)
+        pos = spec['position']
+        left = Inches(pos['x'])
+        top = Inches(pos['y'])
+        width = Inches(pos['width'])
+        height = Inches(pos['height'])
+
+        # Create text box
+        textbox = slide.shapes.add_textbox(left, top, width, height)
+        text_frame = textbox.text_frame
+
+        # Get content from content reference
+        content_id = spec['content_ref']
+        content_text = self._get_content_by_id(content_id)
+
+        # Add text
+        p = text_frame.paragraphs[0]
+        p.text = content_text
+
+        # Apply styling
+        styling = spec['styling']
+        font = p.font
+        font.name = styling['font']['family']
+        font.size = Pt(styling['font']['size'])
+        font.bold = (styling['font']['weight'] == 'bold')
+        font.color.rgb = RGBColor.from_string(styling['color'])
+
+        # Apply alignment
+        alignment_map = {
+            'left': PP_ALIGN.LEFT,
+            'center': PP_ALIGN.CENTER,
+            'right': PP_ALIGN.RIGHT
+        }
+        p.alignment = alignment_map[styling['alignment']]
+
+        # Apply spacing
+        spacing = styling['spacing']
+        text_frame.margin_top = Inches(spacing['top'])
+        text_frame.margin_bottom = Inches(spacing['bottom'])
+        text_frame.margin_left = Inches(spacing['left'])
+        text_frame.margin_right = Inches(spacing['right'])
+
+        return textbox
+
+    def _add_image(self, slide, spec):
+        """Translates image specification to python-pptx image"""
+
+        # Get image path
+        content_id = spec['content_ref']
+        image_path = self._get_image_path_by_id(content_id)
+
+        # Position and size
+        pos = spec['position']
+        left = Inches(pos['x'])
+        top = Inches(pos['y'])
+        width = Inches(pos['width'])
+        height = Inches(pos['height'])
+
+        # Add image
+        pic = slide.shapes.add_picture(
+            image_path,
+            left, top,
+            width=width,
+            height=height
+        )
+
+        return pic
+
+    def _map_template_to_layout(self, template_name):
+        """
+        Maps our template names to python-pptx layout indices
+        """
+        template_mapping = {
+            'title_slide': 0,
+            'title_and_content': 1,
+            'section_header': 2,
+            'two_column': 3,
+            'comparison': 4,
+            'title_only': 5,
+            'blank': 6,
+            'content_with_caption': 7,
+            'picture_with_caption': 8
+        }
+        return template_mapping.get(template_name, 6)  # Default to blank
+
+
+class WordFormatter:
+    """
+    Translates layout specification into python-docx calls
+    """
+
+    def __init__(self, layout_spec):
+        self.spec = layout_spec
+        self.doc = Document()
+
+    def generate(self):
+        """Main entry point - generates .docx file"""
+
+        # Apply theme
+        self._apply_theme(self.spec['metadata'])
+
+        # Generate content (flow-based)
+        for section in self.spec['structure']:
+            if section['type'] in ['section', 'page']:
+                self._create_section(section)
+
+        return self.doc
+
+    def _create_section(self, section_spec):
+        """Creates document section from specification"""
+
+        # Word is flow-based, not position-based
+        # Elements are added in order, not by absolute position
+
+        # Sort elements by intended vertical position
+        elements = sorted(
+            section_spec['layout']['elements'],
+            key=lambda e: e['position']['y']
+        )
+
+        # Add each element in order
+        for element_spec in elements:
+            self._add_element(element_spec)
+
+    def _add_element(self, element_spec):
+        """Adds element to document flow"""
+
+        elem_type = element_spec['type']
+
+        if elem_type == 'text':
+            self._add_paragraph(element_spec)
+        elif elem_type == 'image':
+            self._add_image(element_spec)
+        elif elem_type == 'table':
+            self._add_table(element_spec)
+
+    def _add_paragraph(self, spec):
+        """Translates text specification to python-docx paragraph"""
+
+        # Get content
+        content_id = spec['content_ref']
+        content_text = self._get_content_by_id(content_id)
+
+        # Determine style based on hierarchy
+        hierarchy = spec.get('gestalt_rules', {}).get('hierarchy_level', 4)
+        style = self._hierarchy_to_style(hierarchy)
+
+        # Add paragraph with style
+        p = self.doc.add_paragraph(content_text, style=style)
+
+        # Apply custom styling (overrides style)
+        styling = spec['styling']
+
+        # Apply font formatting to all runs in paragraph
+        for run in p.runs:
+            font = run.font
+            font.name = styling['font']['family']
+            font.size = Pt(styling['font']['size'])
+            font.bold = (styling['font']['weight'] == 'bold')
+            font.color.rgb = RGBColor.from_string(styling['color'])
+
+        # Apply paragraph formatting
+        p_format = p.paragraph_format
+
+        alignment_map = {
+            'left': WD_ALIGN_PARAGRAPH.LEFT,
+            'center': WD_ALIGN_PARAGRAPH.CENTER,
+            'right': WD_ALIGN_PARAGRAPH.RIGHT
+        }
+        p_format.alignment = alignment_map[styling['alignment']]
+
+        # Spacing
+        spacing = styling['spacing']
+        p_format.space_before = Pt(spacing['top'] * 72)  # Convert inches to points
+        p_format.space_after = Pt(spacing['bottom'] * 72)
+        p_format.left_indent = Inches(spacing['left'])
+        p_format.right_indent = Inches(spacing['right'])
+
+        return p
+
+    def _hierarchy_to_style(self, level):
+        """Maps hierarchy level to Word built-in style"""
+        style_map = {
+            1: 'Heading 1',
+            2: 'Heading 2',
+            3: 'Heading 3',
+            4: 'Normal',
+            5: 'Caption'
+        }
+        return style_map.get(level, 'Normal')
+
+    def _add_image(self, spec):
+        """Translates image specification to python-docx image"""
+
+        # Get image
+        content_id = spec['content_ref']
+        image_path = self._get_image_path_by_id(content_id)
+
+        # Size
+        pos = spec['position']
+        width = Inches(pos['width'])
+
+        # Add inline image (simpler than floating)
+        # Note: Word formatter uses flow-based layout
+        p = self.doc.add_paragraph()
+        run = p.add_run()
+        run.add_picture(image_path, width=width)
+
+        # Center image if specified
+        if spec['styling']['alignment'] == 'center':
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+        return p
+```
+
+VALIDATION LAYER: PRE-FLIGHT CHECKS
+------------------------------------
+
+Before passing to formatter, validate that spec is implementable:
+
+```
+class LayoutSpecValidator:
+    """
+    Validates layout specification against formatter capabilities
+    Catches errors before generation
+    """
+
+    def validate(self, layout_spec, formatter_type='powerpoint'):
+        """
+        Returns: (is_valid, errors, warnings)
+        """
+        capabilities = FORMATTER_CAPABILITIES[formatter_type]
+        errors = []
+        warnings = []
+
+        # Check 1: Dimensions fit
+        for section in layout_spec['structure']:
+            for element in section['layout']['elements']:
+                pos = element['position']
+
+                # Check if element fits on page/slide
+                max_width = capabilities['slide_dimensions']['width']
+                max_height = capabilities['slide_dimensions']['height']
+
+                if pos['x'] + pos['width'] > max_width:
+                    errors.append(f"Element {element['id']} exceeds slide width")
+
+                if pos['y'] + pos['height'] > max_height:
+                    errors.append(f"Element {element['id']} exceeds slide height")
+
+        # Check 2: Supported templates
+        supported = capabilities['supported_layouts']
+        for section in layout_spec['structure']:
+            template = section['layout']['template']
+            if template not in supported:
+                warnings.append(f"Template '{template}' may not be supported, will use closest match")
+
+        # Check 3: Image formats
+        supported_formats = capabilities['image_capabilities']['formats']
+        for section in layout_spec['structure']:
+            for element in section['layout']['elements']:
+                if element['type'] == 'image':
+                    image_path = element.get('content_ref')
+                    ext = image_path.split('.')[-1].lower()
+                    if ext not in supported_formats:
+                        errors.append(f"Image format .{ext} not supported")
+
+        # Check 4: Color values valid
+        for section in layout_spec['structure']:
+            for element in section['layout']['elements']:
+                color = element['styling'].get('color')
+                if color and not self._is_valid_color(color):
+                    errors.append(f"Invalid color format: {color}")
+
+        is_valid = len(errors) == 0
+        return is_valid, errors, warnings
+
+    def _is_valid_color(self, color):
+        """Validates color format (hex)"""
+        import re
+        return bool(re.match(r'^#[0-9A-Fa-f]{6}$', color))
+```
+
+
+SUGGESTED IMPLEMENTATION APPROACH
+==================================
+
+PHASE 1: Foundation (Week 1-2)
+-------------------------------
+1. Define input schema (JSON/YAML) - validate with pydantic
+2. Define layout specification schema - validate with jsonschema
+3. Implement formatter capabilities registry
+4. Build PowerPoint formatter (reads spec, generates pptx)
+5. Build Word formatter (reads spec, generates docx)
+6. Create 3-5 manual layout specs as test cases
+7. Validate formatters can execute specs correctly
+
+PHASE 2: Content Analysis (Week 3)
+-----------------------------------
+1. Build content analyzer (extracts structure from text)
+2. Image analysis (dimensions, aspect ratio)
+3. Content type classification
+4. Test with real-world documents
+
+PHASE 3: Gestalt Principles Engine (Week 4-5)
+----------------------------------------------
+1. Implement computational algorithms for each principle:
+   - Proximity calculator
+   - Similarity/consistency system
+   - Visual hierarchy calculator
+   - Grid alignment system
+   - Whitespace calculator
+   - Color contrast validator
+2. Typography system (modular scale)
+3. Test each principle independently
+4. Integration test: full rule-based pipeline
+
+PHASE 4: Layout Generator - Rule-Based (Week 6)
+------------------------------------------------
+1. Implement GestaltDecisionEngine
+2. Template selection logic
+3. Layout specification builder
+4. End-to-end test: content → layout spec → document
+5. Iterate on quality of output
+
+PHASE 5: AI Integration (Week 7-8)
+-----------------------------------
+1. Design AI prompts for layout suggestions
+2. Implement AILayoutAdvisor
+3. Build validation layer for AI suggestions
+4. Implement hybrid merge strategy
+5. Test all three modes: rule_based, ai_enhanced, hybrid
+6. Fallback testing (AI unavailable scenarios)
+
+PHASE 6: Integration & Polish (Week 9-10)
+------------------------------------------
+1. Build validation layer (pre-flight checks)
+2. Comprehensive error handling
+3. Logging and debugging tools
+4. Performance optimization
+5. Documentation and examples
+
+
+TECHNICAL STACK SUGGESTIONS
+===========================
+
+CORE LIBRARIES:
+- python-docx: Word document generation
+- python-pptx: PowerPoint generation
+- Pillow (PIL): Image processing and analysis
+- pydantic: Schema validation for input/layout specs
+
+DESIGN & ANALYSIS:
+- numpy: Mathematical calculations (spacing, ratios)
+- colorsys: Color space conversions (RGB ↔ HSL)
+
+AI INTEGRATION:
+- openai / anthropic: LLM APIs for layout suggestions
+- Use structured output / function calling features
+
+UTILITIES:
+- pyyaml: Configuration files
+- jsonschema: Schema validation
+- python-dotenv: Environment configuration
+- pytest: Testing framework
+
+
+KEY DESIGN DECISIONS
+====================
+
+1. LAYOUT SPECIFICATION FORMAT
+   - Use JSON (easier to debug, widely supported)
+   - Version the schema (v1.0, v1.1, etc.)
+   - Include design rationale for debugging
+
+2. COORDINATE SYSTEM
+   - Canonical unit: Inches (native to Office formats)
+   - Support percentage inputs (convert to inches early)
+   - Use 12-column grid for responsive-like layout
+
+3. ERROR HANDLING
+   - Validate layout spec before formatting (pre-flight checks)
+   - Graceful degradation (skip invalid elements, log warnings)
+   - Always have rule-based fallback
+
+4. TESTING STRATEGY
+   - Unit tests for each Gestalt principle
+   - Integration tests with manual layout specs
+   - Golden file tests (save good outputs, compare new outputs)
+   - Validator tests (ensure catches invalid specs)
+
+5. PERFORMANCE TARGETS
+   - < 2 seconds for 20-page document (rule-based)
+   - < 10 seconds with AI enhancement
+   - < 100ms for validation layer
+
+
+POTENTIAL CHALLENGES & SOLUTIONS
+=================================
+
+CHALLENGE 1: Layout Spec Complexity
+- Problem: Complex layouts create verbose JSON
+- Solution: Template inheritance, smart defaults, compression
+
+CHALLENGE 2: AI Suggestions Not Implementable
+- Problem: AI suggests features python-pptx doesn't support
+- Solution: Capabilities registry + validation layer catches this
+
+CHALLENGE 3: Word Flow-Based vs. PPT Position-Based
+- Problem: Same layout spec works differently for each
+- Solution: Formatter-specific adapters, position → flow conversion
+
+CHALLENGE 4: Maintaining Gestalt Principles Quality
+- Problem: Ensuring outputs always follow principles
+- Solution: Automated scoring system, regression tests
+
+
+NEXT STEPS
+==========
+
+1. Review and validate this enhanced architecture
+2. Create detailed pydantic schemas for input/layout
+3. Build proof-of-concept: manual layout spec → PPT formatter
+4. Implement one Gestalt principle (hierarchy) end-to-end
+5. Test with real-world content samples

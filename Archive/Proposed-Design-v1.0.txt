@@ -1,0 +1,360 @@
+PROPOSED DESIGN DOCUMENT - Document Builder v1.0
+==================================================
+
+REVIEW OF PROPOSED APPROACH
+----------------------------
+
+Your proposed three-stage pipeline is well-structured and follows a logical separation of concerns:
+
+1. INPUT STAGE: Content + Intent
+   - Text and images (raw content)
+   - Purpose/goals/constraints (design intent)
+   ✓ Good: Separates content from presentation logic
+
+2. GESTALT/LAYOUT STAGE: Design Intelligence
+   - Parses and analyzes content
+   - Applies design principles
+   - Generates layout specifications
+   ✓ Good: Centralizes design logic in one component
+   ✓ Good: Can leverage AI for intelligent layout decisions
+
+3. FORMATTING STAGE: Document Generation
+   - Takes layout specifications
+   - Generates Word/PPT using python-docx/python-pptx
+   ✓ Good: Clean separation - formatter is "dumb" executor
+
+STRENGTHS OF THIS APPROACH:
+- Clear separation of concerns
+- Reusable Gestalt component (can be used for other formats)
+- Design logic is centralized and testable
+- Can iterate on design without touching formatter code
+- AI can enhance the Gestalt component without affecting formatters
+
+POTENTIAL CONSIDERATIONS:
+- Need to define a clear data structure/schema for layout specifications
+- Gestalt component needs to understand constraints of python-pptx/python-docx
+- Error handling when layout suggestions can't be implemented
+- Versioning of layout specifications if format changes
+
+
+SUGGESTED ARCHITECTURE
+======================
+
+COMPONENT STRUCTURE
+-------------------
+
+┌─────────────────────────────────────────────────────────────┐
+│                    INPUT PROCESSOR                           │
+│  - Validates input (text, images, metadata)                  │
+│  - Normalizes content (extracts structure, identifies types) │
+│  - Prepares content for analysis                             │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────┐
+│              GESTALT DESIGN ENGINE                           │
+│                                                               │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  Content Analyzer                                    │    │
+│  │  - Analyzes text structure (headings, lists, etc.)   │    │
+│  │  - Identifies content types (narrative, data, etc.)  │    │
+│  │  - Extracts semantic meaning                         │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                       │                                       │
+│                       ▼                                       │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  Design Principles Engine                            │    │
+│  │  - Applies Gestalt principles                        │    │
+│  │  - Calculates optimal sizing/spacing                 │    │
+│  │  - Determines visual hierarchy                       │    │
+│  │  - Suggests color schemes                            │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                       │                                       │
+│                       ▼                                       │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  Layout Generator (AI-Enhanced)                      │    │
+│  │  - Word: Generates document structure/outline        │    │
+│  │  - PPT: Generates slide layouts and content mapping  │    │
+│  │  - Considers constraints and goals                    │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                       │                                       │
+│                       ▼                                       │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  Layout Specification Builder                        │    │
+│  │  - Creates structured layout spec (JSON/YAML)        │    │
+│  │  - Includes all positioning, sizing, styling info     │    │
+│  └─────────────────────────────────────────────────────┘    │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────┐
+│              DOCUMENT FORMATTERS                             │
+│                                                               │
+│  ┌──────────────────┐      ┌──────────────────┐            │
+│  │  Word Formatter   │      │  PPT Formatter   │            │
+│  │  (python-docx)    │      │  (python-pptx)   │            │
+│  │                   │      │                  │            │
+│  │  - Reads layout   │      │  - Reads layout  │            │
+│  │    spec           │      │    spec          │            │
+│  │  - Generates .docx│      │  - Generates .pptx│           │
+│  └──────────────────┘      └──────────────────┘            │
+└─────────────────────────────────────────────────────────────┘
+
+
+DATA FLOW & SCHEMAS
+-------------------
+
+INPUT SCHEMA (Stage 1):
+{
+  "content": {
+    "text": [
+      {
+        "id": "text-001",
+        "type": "heading|paragraph|list|quote|table",
+        "content": "...",
+        "level": 1,  // for headings
+        "metadata": {}
+      }
+    ],
+    "images": [
+      {
+        "id": "img-001",
+        "path": "...",
+        "alt_text": "...",
+        "dimensions": {"width": 1920, "height": 1080},
+        "purpose": "illustration|diagram|chart|photo"
+      }
+    ]
+  },
+  "design_intent": {
+    "purpose": "report|presentation|proposal|manual",
+    "audience": "executives|technical|general",
+    "goals": ["clarity", "professional", "engaging"],
+    "constraints": {
+      "max_pages": 10,
+      "color_scheme": "corporate|creative|minimal",
+      "brand_guidelines": {...}
+    }
+  }
+}
+
+LAYOUT SPECIFICATION SCHEMA (Stage 2 → Stage 3):
+{
+  "document_type": "word|powerpoint",
+  "metadata": {
+    "title": "...",
+    "author": "...",
+    "theme": "..."
+  },
+  "structure": [
+    {
+      "type": "section|slide|page",
+      "id": "section-001",
+      "layout": {
+        "template": "title-slide|content-slide|two-column",
+        "elements": [
+          {
+            "id": "elem-001",
+            "type": "text|image|table|chart|shape",
+            "content_ref": "text-001",  // references input
+            "position": {
+              "x": 0.5,  // inches or percentage
+              "y": 1.0,
+              "width": 6.0,
+              "height": 2.0
+            },
+            "styling": {
+              "font": {"family": "Arial", "size": 24, "weight": "bold"},
+              "color": "#333333",
+              "alignment": "left|center|right",
+              "spacing": {"top": 0.5, "bottom": 0.5, "left": 0.5, "right": 0.5}
+            },
+            "gestalt_rules": {
+              "hierarchy_level": 1,
+              "group_id": "header-group",
+              "proximity_group": "main-content"
+            }
+          }
+        ],
+        "spacing": {
+          "margins": {"top": 0.5, "bottom": 0.5, "left": 1.0, "right": 1.0},
+          "grid": {"columns": 12, "gutter": 0.25}  // 12-column grid system
+        }
+      }
+    }
+  ],
+  "design_rationale": {
+    "principles_applied": ["proximity", "similarity", "hierarchy"],
+    "decisions": [
+      {
+        "element": "elem-001",
+        "reason": "Large font size to establish visual hierarchy",
+        "principle": "Gestalt: Figure-Ground"
+      }
+    ]
+  }
+}
+
+
+SUGGESTED IMPLEMENTATION APPROACH
+==================================
+
+PHASE 1: Foundation
+-------------------
+1. Define input schema (JSON/YAML)
+2. Define layout specification schema
+3. Build basic Word formatter (reads spec, generates docx)
+4. Build basic PPT formatter (reads spec, generates pptx)
+5. Create simple test cases with manual layout specs
+
+PHASE 2: Content Analysis
+-------------------------
+1. Build content analyzer (extracts structure from text)
+2. Image analysis (dimensions, aspect ratio, content type)
+3. Content type classification (narrative, data, instructional, etc.)
+
+PHASE 3: Design Principles Engine
+----------------------------------
+1. Implement Gestalt principle calculators:
+   - Proximity calculator (distance-based grouping)
+   - Similarity calculator (style consistency)
+   - Hierarchy calculator (size relationships)
+   - Alignment calculator (grid-based positioning)
+2. Typography system (font size scales, line heights)
+3. Spacing system (8px/12px grid, golden ratio)
+4. Color system (contrast ratios, harmony)
+
+PHASE 4: Layout Generator (AI-Enhanced)
+----------------------------------------
+1. Rule-based layout generator (initial version)
+   - Word: Document structure based on headings
+   - PPT: Slide breakdown based on content chunks
+2. AI integration (optional enhancement):
+   - Use LLM to suggest layouts based on content + intent
+   - Validate AI suggestions against design principles
+   - Fallback to rule-based if AI unavailable
+3. Constraint satisfaction (ensure layout meets goals/constraints)
+
+PHASE 5: Integration & Refinement
+----------------------------------
+1. End-to-end pipeline
+2. Error handling and validation
+3. Layout optimization (iterative improvement)
+4. User feedback loop (allow manual overrides)
+
+
+AI INTEGRATION STRATEGY
+=======================
+
+OPTION A: AI as Layout Advisor
+-------------------------------
+- AI suggests layout structure (high-level)
+- Design Principles Engine validates and refines
+- More predictable, testable
+- Better for production systems
+
+OPTION B: AI as Complete Designer
+----------------------------------
+- AI generates full layout specification
+- Design Principles Engine validates
+- More creative, less predictable
+- Good for exploratory/creative use cases
+
+RECOMMENDATION: Hybrid Approach
+-------------------------------
+1. Rule-based system for common patterns (fast, reliable)
+2. AI for complex/novel layouts (creative, adaptive)
+3. Design Principles Engine always validates (ensures quality)
+4. User can choose: "conservative" (rule-based) or "creative" (AI-enhanced)
+
+
+TECHNICAL STACK SUGGESTIONS
+===========================
+
+CORE LIBRARIES:
+- python-docx: Word document generation
+- python-pptx: PowerPoint generation
+- Pillow (PIL): Image processing and analysis
+- pydantic: Schema validation for input/layout specs
+
+DESIGN & ANALYSIS:
+- numpy: Mathematical calculations (spacing, ratios)
+- scikit-image: Image analysis (if needed for content understanding)
+
+AI INTEGRATION (Optional):
+- openai / anthropic: LLM APIs for layout suggestions
+- langchain: If building complex AI workflows
+
+UTILITIES:
+- pyyaml: Configuration files
+- jsonschema: Schema validation
+- python-dotenv: Environment configuration
+
+
+KEY DESIGN DECISIONS
+====================
+
+1. LAYOUT SPECIFICATION FORMAT
+   - Use JSON (easier to debug, widely supported)
+   - Consider YAML for human-readable configs
+   - Version the schema (v1.0, v1.1, etc.)
+
+2. COORDINATE SYSTEM
+   - Use Inches (standard for Office documents)
+   - Support percentage-based positioning (relative to slide/page)
+   - Grid system (12-column recommended)
+
+3. ERROR HANDLING
+   - Validate layout spec before formatting
+   - Graceful degradation (skip invalid elements, log warnings)
+   - Provide detailed error messages with element IDs
+
+4. TESTING STRATEGY
+   - Unit tests for each component
+   - Integration tests with sample layout specs
+   - Visual regression tests (compare generated docs)
+
+5. EXTENSIBILITY
+   - Plugin system for custom design principles
+   - Custom formatters (PDF, HTML, etc.)
+   - Template system for common layouts
+
+
+POTENTIAL CHALLENGES & SOLUTIONS
+=================================
+
+CHALLENGE 1: Layout Spec Complexity
+- Problem: Complex layouts create verbose specs
+- Solution: Use templates and inheritance, provide defaults
+
+CHALLENGE 2: AI Suggestions Not Implementable
+- Problem: AI suggests features python-pptx doesn't support
+- Solution: Constraint checker validates against formatter capabilities
+
+CHALLENGE 3: Performance with Large Documents
+- Problem: Processing time for 100+ page documents
+- Solution: Batch processing, caching, parallelization
+
+CHALLENGE 4: Maintaining Design Quality
+- Problem: Ensuring all outputs follow principles
+- Solution: Automated design audits, scoring system
+
+
+NEXT STEPS
+==========
+
+1. Validate this architecture approach
+2. Define detailed schemas (input, layout spec)
+3. Create proof-of-concept for one document type
+4. Build minimal viable Gestalt component
+5. Iterate based on real-world examples
+
+
+NOTES
+=====
+
+- Consider creating a visual preview system (HTML/CSS) before generating final docs
+- Allow users to provide feedback on generated layouts for learning
+- Build a library of proven layout patterns/templates
+- Consider accessibility (WCAG compliance) in design principles
+
