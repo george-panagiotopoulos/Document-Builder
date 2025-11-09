@@ -6,10 +6,14 @@ It validates and normalizes the submission, assembles a Content-Intent Package (
 and coordinates downstream calls to the Gestalt Design Engine.
 """
 
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from services.content_intake.api import sessions
+from services.content_intake.ui import routes as ui_routes
 from services.content_intake.utils.config import settings
 from services.content_intake.utils.logging import setup_logging
 
@@ -33,8 +37,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount static files
+static_dir = Path(__file__).parent / "ui" / "static"
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
 # Include routers
 app.include_router(sessions.router, prefix="/v1/intake", tags=["sessions"])
+app.include_router(ui_routes.router, tags=["ui"])
 
 
 @app.get("/health")

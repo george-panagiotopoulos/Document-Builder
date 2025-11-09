@@ -12,6 +12,9 @@ Pillow==10.4.0
 numpy==2.1.0
 pytest==8.2.2
 
+# UI
+jinja2==3.1.4
+
 # Database
 sqlalchemy==2.0.31
 psycopg2-binary==2.9.9

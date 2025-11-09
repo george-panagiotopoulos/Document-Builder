@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}New Session - Document Builder{% endblock %}
+
+{% block content %}
+<h2>Create New Intake Session</h2>
+
+<form onsubmit="createSession(event)">
+    <!-- Design Intent Section -->
+    <div class="card">
+        <div class="card-header">Design Intent</div>
+
+        <div class="grid grid-2">
+            <div class="form-group">
+                <label for="purpose">Purpose</label>
+                <select id="purpose" required>
+                    <option value="report">Report</option>
+                    <option value="presentation">Presentation</option>
+                    <option value="proposal">Proposal</option>
+                    <option value="playbook">Playbook</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="audience">Audience</label>
+                <select id="audience" required>
+                    <option value="technical">Technical</option>
+                    <option value="executive">Executive</option>
+                    <option value="customer">Customer</option>
+                    <option value="internal">Internal</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="grid grid-2">
+            <div class="form-group">
+                <label for="tone">Tone</label>
+                <select id="tone" required>
+                    <option value="formal">Formal</option>
+                    <option value="conversational">Conversational</option>
+                    <option value="persuasive">Persuasive</option>
+                    <option value="educational">Educational</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="visual-density">Visual Density</label>
+                <select id="visual-density" required>
+                    <option value="balanced" selected>Balanced</option>
+                    <option value="tight">Tight</option>
+                    <option value="airy">Airy</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Content Blocks Section -->
+    <div class="card">
+        <div class="card-header">Content Blocks</div>
+
+        <div class="form-group">
+            <label for="block-type">Block Type</label>
+            <select id="block-type">
+                <option value="heading">Heading</option>
+                <option value="paragraph">Paragraph</option>
+                <option value="list">List</option>
+                <option value="quote">Quote</option>
+                <option value="callout">Callout</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="block-level">Level (for headings)</label>
+            <input type="number" id="block-level" min="0" max="6" value="0">
+        </div>
+
+        <div class="form-group">
+            <label for="block-text">Content Text</label>
+            <textarea id="block-text" placeholder="Enter your content here..."></textarea>
+        </div>
+
+        <button type="button" class="btn btn-secondary" onclick="addContentBlock()">Add Content Block</button>
+
+        <div id="content-blocks-list" style="margin-top: 1.5rem;">
+            <!-- Content blocks will be rendered here -->
+        </div>
+    </div>
+
+    <!-- Images Section -->
+    <div class="card">
+        <div class="card-header">Image Assets (Optional)</div>
+
+        <div class="form-group">
+            <label for="image-uri">Image URI</label>
+            <input type="url" id="image-uri" placeholder="https://example.com/image.png">
+        </div>
+
+        <div class="grid grid-2">
+            <div class="form-group">
+                <label for="image-alt">Alt Text</label>
+                <input type="text" id="image-alt" placeholder="Description of the image">
+            </div>
+
+            <div class="form-group">
+                <label for="image-format">Format</label>
+                <select id="image-format">
+                    <option value="png">PNG</option>
+                    <option value="jpg">JPG</option>
+                    <option value="jpeg">JPEG</option>
+                    <option value="svg">SVG</option>
+                </select>
+            </div>
+        </div>
+
+        <button type="button" class="btn btn-secondary" onclick="addImage()">Add Image</button>
+
+        <div id="images-list" style="margin-top: 1.5rem;">
+            <!-- Images will be rendered here -->
+        </div>
+    </div>
+
+    <!-- Submit Button -->
+    <div style="margin-top: 2rem;">
+        <button type="submit" class="btn btn-primary btn-lg">Create Session</button>
+        <a href="/" class="btn btn-outline" style="margin-left: 1rem;">Cancel</a>
+    </div>
+</form>
+{% endblock %}
