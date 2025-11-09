@@ -6,6 +6,7 @@ __pycache__/
 venv/
 .env
 .env.*
+!.env.example
 
 # Editors / IDEs
 .idea/
@@ -26,6 +27,9 @@ logs/
 *.log
 coverage/
 .pytest_cache/
+
+# Service management
+.service_pids
 
 # Artifacts
 artifacts/

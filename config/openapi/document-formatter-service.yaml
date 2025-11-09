@@ -1,0 +1,225 @@
+openapi: 3.0.3
+info:
+  title: Document Formatter Service API
+  description: Transforms Layout Specification Packages into Microsoft Word and PowerPoint artifacts
+  version: 1.0.0
+
+servers:
+  - url: https://formatter.document-builder.internal/v1
+
+security:
+  - bearerAuth: []
+
+paths:
+  /render/documents:
+    post:
+      summary: Accept an LSP and initiate Word document generation
+      operationId: renderWordDocument
+      tags: [Rendering]
+      security:
+        - bearerAuth: [render.create]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenderRequest'
+      responses:
+        '202':
+          description: Render job queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RenderJobResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /render/presentations:
+    post:
+      summary: Accept an LSP and initiate PowerPoint generation
+      operationId: renderPowerPointPresentation
+      tags: [Rendering]
+      security:
+        - bearerAuth: [render.create]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenderRequest'
+      responses:
+        '202':
+          description: Render job queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RenderJobResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /render/jobs/{render_job_id}:
+    get:
+      summary: Retrieve job status and artifact references
+      operationId: getRenderJob
+      tags: [Rendering]
+      security:
+        - bearerAuth: [render.read]
+      parameters:
+        - name: render_job_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^job-[a-zA-Z0-9\-]+$'
+      responses:
+        '200':
+          description: Job status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RenderJobResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /render/jobs/{render_job_id}/cancel:
+    post:
+      summary: Attempt to cancel in-progress rendering
+      operationId: cancelRenderJob
+      tags: [Rendering]
+      security:
+        - bearerAuth: [render.manage]
+      parameters:
+        - name: render_job_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cancellation request accepted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /artifacts/{artifact_id}:
+    get:
+      summary: Download generated files or obtain time-limited access URLs
+      operationId: getArtifact
+      tags: [Artifacts]
+      security:
+        - bearerAuth: [render.read]
+      parameters:
+        - name: artifact_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Artifact download link
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    RenderRequest:
+      type: object
+      required: [layout_specification]
+      properties:
+        layout_specification:
+          $ref: '#/components/schemas/LayoutSpecificationPackage'
+        callback_url:
+          type: string
+          format: uri
+
+    LayoutSpecificationPackage:
+      type: object
+      properties:
+        schema_version:
+          type: string
+        proposal_id:
+          type: string
+        document_type:
+          type: string
+        structure:
+          type: array
+          items:
+            type: object
+
+    RenderJobResponse:
+      type: object
+      properties:
+        render_job_id:
+          type: string
+          example: job-789
+        status:
+          type: string
+          enum: [queued, processing, complete, failed, cancelled, pending_storage]
+        artifact_id:
+          type: string
+        error:
+          type: string
+        warnings:
+          type: array
+          items:
+            type: string
+
+    ArtifactResponse:
+      type: object
+      properties:
+        artifact_id:
+          type: string
+        download_url:
+          type: string
+          format: uri
+        expires_at:
+          type: string
+          format: date-time
+        file_type:
+          type: string
+          enum: [docx, pptx]
+        size_bytes:
+          type: integer
+
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        trace_id:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UnprocessableEntity:
+      description: Validation failure
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

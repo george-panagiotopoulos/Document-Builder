@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Session {{ session_id }} - Document Builder{% endblock %}
+
+{% block content %}
+<meta name="session-id" content="{{ session_id }}">
+
+<h2>Session Details</h2>
+
+<div id="session-detail">
+    <!-- Session details will be loaded here -->
+    <div class="spinner"></div>
+</div>
+
+<div class="card">
+    <div class="card-header">Actions</div>
+    <button id="submit-session-btn" class="btn btn-primary" onclick="submitSession('{{ session_id }}')" disabled>
+        Submit for Layout Generation
+    </button>
+    <a href="/" class="btn btn-outline" style="margin-left: 1rem;">Back to Home</a>
+</div>
+
+<div class="card">
+    <div class="card-header">Artifacts</div>
+    <div id="artifacts-list">
+        <p class="text-secondary">Loading artifacts...</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Load artifacts
+async function loadArtifacts(sessionId) {
+    try {
+        const response = await fetch(`/v1/intake/sessions/${sessionId}/artifacts`);
+        if (!response.ok) throw new Error('Failed to load artifacts');
+
+        const data = await response.json();
+        const container = document.getElementById('artifacts-list');
+
+        if (data.artifacts.length === 0) {
+            container.innerHTML = '<p class="text-secondary">No artifacts available yet.</p>';
+        } else {
+            container.innerHTML = data.artifacts.map(artifact => `
+                <div class="content-block">
+                    <p><strong>Type:</strong> ${artifact.type}</p>
+                    <p><strong>ID:</strong> ${artifact.artifact_id}</p>
+                    <p><strong>Status:</strong> <span class="status-badge status-${artifact.status}">${artifact.status}</span></p>
+                </div>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Error loading artifacts:', error);
+    }
+}
+
+// Load artifacts on page load
+document.addEventListener('DOMContentLoaded', () => {
+    loadArtifacts('{{ session_id }}');
+});
+</script>
+{% endblock %}

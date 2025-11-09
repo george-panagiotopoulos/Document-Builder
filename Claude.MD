@@ -62,6 +62,78 @@
 
 10. **Performance**: Be mindful of performance targets defined in design documents. Use async processing for long-running operations. Implement caching where appropriate (as specified in design docs).
 
+## Running Services
+
+**IMPORTANT: Always use the provided start/stop scripts to manage services. Never start services manually.**
+
+### Starting All Services
+
+```bash
+./start.sh
+```
+
+This script will:
+- Load configuration from `.env` file
+- Check if PostgreSQL is running
+- Start all three services (Content Intake, Gestalt Engine, Document Formatter)
+- Display service URLs and log locations
+- Save process IDs for graceful shutdown
+
+### Stopping All Services
+
+```bash
+./stop.sh
+```
+
+This script will:
+- Gracefully stop all running services
+- Wait for clean shutdown (with timeout)
+- Force kill if necessary
+- Clean up PID files
+
+### Service URLs (Default Ports)
+
+After starting services with `./start.sh`:
+- **Content Intake UI**: http://localhost:8001/
+- **Content Intake API**: http://localhost:8001/docs
+- **Gestalt Engine API**: http://localhost:8002/docs
+- **Document Formatter API**: http://localhost:8003/docs
+
+### Viewing Logs
+
+```bash
+# View all logs in real-time
+tail -f logs/*.log
+
+# View specific service log
+tail -f logs/Content\ Intake\ Service.log
+tail -f logs/Gestalt\ Design\ Engine.log
+tail -f logs/Document\ Formatter.log
+```
+
+### Prerequisites
+
+Before running services:
+1. **PostgreSQL must be running** (Content Intake Service requirement)
+2. **Environment configured** (copy `.env.example` to `.env` and configure)
+3. **Database migrations applied** (`cd services/content_intake && alembic upgrade head`)
+
+### Manual Service Management (Not Recommended)
+
+If you need to start services individually for debugging:
+```bash
+# Content Intake Service (port 8001)
+uvicorn services.content_intake.main:app --reload --port 8001
+
+# Gestalt Design Engine (port 8002)
+uvicorn services.gestalt_engine.main:app --reload --port 8002
+
+# Document Formatter Service (port 8003)
+uvicorn services.document_formatter.main:app --reload --port 8003
+```
+
+**Note**: When starting services manually, remember to stop them manually as well (the stop.sh script may not detect them).
+
 ## Git Worktree Workflow
 
 This project uses Git worktrees to enable parallel development across multiple components. Each feature branch has its own working directory under `worktrees/`.

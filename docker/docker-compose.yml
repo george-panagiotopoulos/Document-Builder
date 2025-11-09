@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  content-intake:
+    build:
+      context: ../services/content_intake
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8000"
+    environment:
+      - LOG_LEVEL=INFO
+      - GESTALT_ENGINE_URL=http://gestalt-engine:8000/v1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - document-builder
+
+  gestalt-engine:
+    build:
+      context: ../services/gestalt_engine
+      dockerfile: Dockerfile
+    ports:
+      - "8002:8000"
+    environment:
+      - LOG_LEVEL=INFO
+      - AI_MODE_ENABLED=false
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - document-builder
+
+  document-formatter:
+    build:
+      context: ../services/document_formatter
+      dockerfile: Dockerfile
+    ports:
+      - "8003:8000"
+    environment:
+      - LOG_LEVEL=INFO
+      - STORAGE_BUCKET=document-builder-artifacts
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - document-builder
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=document_builder
+      - POSTGRES_USER=docbuilder
+      - POSTGRES_PASSWORD=changeme
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docbuilder"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - document-builder
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - document-builder
+
+networks:
+  document-builder:
+    driver: bridge
+
+volumes:
+  postgres-data:
