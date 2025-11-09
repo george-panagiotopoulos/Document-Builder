@@ -157,9 +157,9 @@ class PowerPointRenderer:
         if not content_ref:
             return None
 
-        # In real implementation, would fetch from CIP or database
-        # For v1, use content_ref as placeholder
-        return f"[Content: {content_ref}]"
+        # Look up content in content_map
+        content_map = lsp.get("content_map", {})
+        return content_map.get(content_ref, f"[Missing content: {content_ref}]")
 
     def _apply_text_styling(
         self, text_frame, styling: dict[str, Any], gestalt_rules: dict[str, Any]

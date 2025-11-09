@@ -136,16 +136,18 @@ class WordRenderer:
         if not content_ref:
             return None
 
-        # LSP doesn't contain raw content, only references
-        # In real implementation, would fetch from CIP or database
-        # For v1, use content_ref as text
-        return f"[Content: {content_ref}]"
+        # Look up content in content_map
+        content_map = lsp.get("content_map", {})
+        return content_map.get(content_ref, f"[Missing content: {content_ref}]")
 
     def _resolve_image_uri(self, image_id: str | None, lsp: dict[str, Any]) -> str | None:
         """Resolve image URI from image_id."""
         if not image_id:
             return None
-        return f"[Image: {image_id}]"
+
+        # Look up image URI in content_map
+        content_map = lsp.get("content_map", {})
+        return content_map.get(image_id, f"[Missing image: {image_id}]")
 
     def _apply_styling(self, paragraph, styling: dict[str, Any]) -> None:
         """

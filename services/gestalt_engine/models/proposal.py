@@ -144,6 +144,9 @@ class LayoutSpecificationPackage(BaseModel):
     design_rationale: DesignRationale = Field(default_factory=DesignRationale)
     warnings: list[str] = Field(default_factory=list)
     formatter_overrides: dict[str, Any] = Field(default_factory=dict)
+    content_map: dict[str, str] = Field(
+        default_factory=dict, description="Map of content_ref to actual text content"
+    )
 
 
 class ProposalResponse(BaseModel):

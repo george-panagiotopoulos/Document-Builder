@@ -62,6 +62,21 @@ class DesignEngine:
         # Calculate design quality scores
         design_rationale = self._calculate_design_rationale(structure, mode)
 
+        # Build content map for formatter to resolve content
+        content_map = {}
+        for block in content_blocks:
+            block_id = block.get("block_id")
+            text = block.get("text", "")
+            if block_id:
+                content_map[block_id] = text
+
+        # Add images to content map as well
+        for image in images:
+            image_id = image.get("image_id")
+            uri = image.get("uri", "")
+            if image_id:
+                content_map[image_id] = uri
+
         # Build LSP
         lsp = LayoutSpecificationPackage(
             proposal_id=proposal_id,
@@ -77,6 +92,7 @@ class DesignEngine:
             design_rationale=design_rationale,
             warnings=[],
             formatter_overrides={"text_overflow_policy": "shrink_font_to_min_10pt"},
+            content_map=content_map,
         )
 
         return lsp
