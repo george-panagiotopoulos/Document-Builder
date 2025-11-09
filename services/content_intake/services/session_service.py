@@ -20,6 +20,7 @@ from services.content_intake.database.models import (
     ImageAssetModel,
     IdempotencyKeyModel,
 )
+from services.content_intake.clients.gestalt_client import GestaltClient
 
 
 class SessionService:
@@ -33,6 +34,7 @@ class SessionService:
             db: SQLAlchemy database session
         """
         self.db = db
+        self.gestalt_client = GestaltClient()
 
     async def create_session(
         self, request: CreateSessionRequest, idempotency_key: str | None = None
@@ -140,7 +142,8 @@ class SessionService:
         """
         Submit session for layout generation.
 
-        Transitions session to layout_queued and triggers downstream processing.
+        Transitions session to layout_queued and triggers downstream processing
+        by calling the Gestalt Design Engine.
         """
         session_model = self.db.query(SessionModel).filter(
             SessionModel.session_id == session_id
@@ -152,15 +155,119 @@ class SessionService:
         if session_model.status not in [SessionStatus.DRAFT, SessionStatus.READY]:
             raise ValueError(f"Cannot submit session in status {session_model.status}")
 
-        # Update session status
-        session_model.status = SessionStatus.LAYOUT_QUEUED
-        session_model.proposal_id = f"lsp-{session_id.split('-')[1]}"
-        session_model.updated_at = datetime.utcnow()
+        # Build Content-Intent Package (CIP) for Gestalt Engine
+        content_blocks = [
+            {
+                "block_id": block.block_id,
+                "type": block.type,
+                "level": block.level,
+                "sequence": block.sequence,
+                "text": block.text,
+                "language": block.language,
+                "detected_role": block.detected_role,
+                "metrics": block.metrics or {},
+            }
+            for block in session_model.content_blocks
+        ]
 
-        self.db.commit()
-        self.db.refresh(session_model)
+        images = [
+            {
+                "image_id": image.image_id,
+                "uri": image.uri,
+                "format": image.format,
+                "width_px": image.width_px,
+                "height_px": image.height_px,
+                "alt_text": image.alt_text,
+                "content_role": image.content_role,
+                "dominant_palette": image.dominant_palette or [],
+            }
+            for image in session_model.images
+        ]
 
-        return self._model_to_response(session_model)
+        cip = self.gestalt_client.build_cip(
+            session_id=session_id,
+            content_blocks=content_blocks,
+            images=images,
+            design_intent=session_model.design_intent,
+            constraints=session_model.constraints or {},
+        )
+
+        try:
+            # Submit to Gestalt Design Engine
+            proposal_response = await self.gestalt_client.create_proposal(
+                cip=cip,
+                idempotency_key=idempotency_key,
+            )
+
+            # Update session with proposal ID from Gestalt
+            session_model.status = SessionStatus.LAYOUT_QUEUED
+            session_model.proposal_id = proposal_response["proposal_id"]
+            session_model.updated_at = datetime.utcnow()
+
+            self.db.commit()
+            self.db.refresh(session_model)
+
+            return self._model_to_response(session_model)
+
+        except ValueError as e:
+            # Update session to failed state
+            session_model.status = SessionStatus.FAILED
+            session_model.error_message = str(e)
+            session_model.updated_at = datetime.utcnow()
+            self.db.commit()
+            self.db.refresh(session_model)
+
+            raise ValueError(f"Failed to submit to Gestalt Engine: {e}")
+
+    async def check_proposal_status(self, session_id: str) -> SessionResponse:
+        """
+        Check proposal status from Gestalt Engine and update session.
+
+        Polls the Gestalt Engine for the current status of the layout proposal
+        and updates the session status accordingly.
+        """
+        session_model = self.db.query(SessionModel).filter(
+            SessionModel.session_id == session_id
+        ).first()
+
+        if not session_model:
+            raise ValueError("Session not found")
+
+        if not session_model.proposal_id:
+            raise ValueError("Session has no proposal ID (not submitted)")
+
+        try:
+            # Poll Gestalt Engine for proposal status
+            proposal_status = await self.gestalt_client.get_proposal_status(
+                session_model.proposal_id
+            )
+
+            # Update session based on Gestalt status
+            gestalt_status = proposal_status["status"]
+
+            if gestalt_status == "processing":
+                session_model.status = SessionStatus.LAYOUT_PROCESSING
+            elif gestalt_status == "complete":
+                session_model.status = SessionStatus.LAYOUT_COMPLETE
+            elif gestalt_status == "failed":
+                session_model.status = SessionStatus.FAILED
+                session_model.error_message = proposal_status.get("error", "Layout generation failed")
+
+            session_model.updated_at = datetime.utcnow()
+            self.db.commit()
+            self.db.refresh(session_model)
+
+            return self._model_to_response(session_model)
+
+        except ValueError as e:
+            # If proposal not found in Gestalt, mark as failed
+            session_model.status = SessionStatus.FAILED
+            session_model.error_message = str(e)
+            session_model.updated_at = datetime.utcnow()
+            self.db.commit()
+            self.db.refresh(session_model)
+
+            raise
 
     async def get_artifacts(self, session_id: str) -> list[dict[str, Any]]:
         """Get artifacts for a session."""

@@ -105,6 +105,36 @@ async def submit_session(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
+@router.post("/sessions/{session_id}/check-status", response_model=SessionResponseModel)
+async def check_proposal_status(
+    session_id: str,
+    service: SessionService = Depends(get_session_service),
+) -> SessionResponseModel:
+    """
+    Check proposal status from Gestalt Engine.
+
+    Polls the Gestalt Engine for the current layout generation status
+    and updates the session status accordingly.
+    """
+    try:
+        updated_session = await service.check_proposal_status(session_id)
+        return SessionResponseModel(
+            session_id=updated_session.session_id,
+            status=updated_session.status,
+            created_at=updated_session.created_at,
+            proposal_id=updated_session.proposal_id,
+            error_message=updated_session.error_message,
+        )
+    except ValueError as e:
+        error_msg = str(e).lower()
+        if "not found" in error_msg:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        else:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
 @router.get("/sessions/{session_id}/artifacts", response_model=ArtifactsResponse)
 async def list_artifacts(
     session_id: str,
