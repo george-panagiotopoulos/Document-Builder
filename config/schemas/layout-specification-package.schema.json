@@ -1,0 +1,483 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://document-builder.internal/schemas/layout-specification-package/v1.1",
+  "title": "Layout Specification Package (LSP)",
+  "description": "Schema for the Layout Specification Package delivered by Gestalt Design Engine to Document Formatter Service",
+  "type": "object",
+  "required": ["schema_version", "proposal_id", "session_id", "document_type", "structure"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+$",
+      "description": "Semantic version of the LSP schema",
+      "example": "1.1"
+    },
+    "proposal_id": {
+      "type": "string",
+      "pattern": "^lsp-[a-zA-Z0-9\\-]+$",
+      "description": "Unique layout proposal identifier",
+      "example": "lsp-78901"
+    },
+    "session_id": {
+      "type": "string",
+      "pattern": "^sess-[a-zA-Z0-9\\-]+$",
+      "description": "Original session ID from intake service"
+    },
+    "document_type": {
+      "type": "string",
+      "enum": ["word", "powerpoint"],
+      "description": "Target document format"
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["created_at"],
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "author": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "theme": {
+          "type": "string",
+          "description": "Visual theme identifier"
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["rule_only", "ai_assist", "ai_full"],
+          "default": "rule_only"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "structure": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/StructureUnit"
+      }
+    },
+    "design_rationale": {
+      "type": "object",
+      "properties": {
+        "principles_applied": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["proximity", "similarity", "hierarchy", "alignment", "whitespace", "contrast", "continuity", "figure_ground"]
+          }
+        },
+        "scores": {
+          "type": "object",
+          "properties": {
+            "proximity_score": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0
+            },
+            "similarity_score": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0
+            },
+            "hierarchy_score": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0
+            },
+            "alignment_score": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0
+            },
+            "whitespace_score": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0
+            },
+            "contrast_score": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0
+            },
+            "overall_quality_score": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0
+            }
+          }
+        },
+        "quality_grade": {
+          "type": "string",
+          "enum": ["excellent", "good", "acceptable", "needs_improvement"]
+        },
+        "ai_contributions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Notes on AI suggestions accepted or rejected"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Manual adjustments or violations"
+        }
+      },
+      "default": {}
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Top-level warnings about the specification"
+    },
+    "formatter_overrides": {
+      "type": "object",
+      "properties": {
+        "text_overflow_policy": {
+          "type": "string",
+          "enum": ["shrink_font_to_min_10pt", "allow_overflow", "truncate"],
+          "default": "shrink_font_to_min_10pt"
+        },
+        "fallback_template": {
+          "type": "string"
+        },
+        "allowed_adjustments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "default": {}
+    }
+  },
+  "definitions": {
+    "StructureUnit": {
+      "type": "object",
+      "required": ["unit_id", "type", "template", "elements"],
+      "properties": {
+        "unit_id": {
+          "type": "string",
+          "description": "Unique identifier for this unit"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["section", "page", "slide"]
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "template": {
+          "type": "string",
+          "description": "Template identifier (e.g., title_slide, two_column, single_column)"
+        },
+        "elements": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/definitions/LayoutElement"
+          }
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "Optional instructions for post-processing"
+        }
+      }
+    },
+    "LayoutElement": {
+      "type": "object",
+      "required": ["element_id", "type", "position", "styling"],
+      "properties": {
+        "element_id": {
+          "type": "string"
+        },
+        "content_ref": {
+          "type": "string",
+          "description": "Links back to CIP content block or asset"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["primary_text", "supporting_text", "visual", "data_table", "callout", "decoration"]
+        },
+        "type": {
+          "type": "string",
+          "enum": ["text", "image", "table", "shape", "chart"]
+        },
+        "position": {
+          "$ref": "#/definitions/Position"
+        },
+        "grid": {
+          "$ref": "#/definitions/GridPosition"
+        },
+        "styling": {
+          "$ref": "#/definitions/Styling"
+        },
+        "gestalt_rules": {
+          "type": "object",
+          "properties": {
+            "hierarchy_level": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            },
+            "proximity_group": {
+              "type": "string"
+            },
+            "similarity_family": {
+              "type": "string"
+            }
+          }
+        },
+        "behaviors": {
+          "type": "object",
+          "properties": {
+            "shrink_to_fit": {
+              "type": "boolean",
+              "default": false
+            },
+            "keep_with_next": {
+              "type": "boolean",
+              "default": false
+            },
+            "allow_page_break": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        }
+      }
+    },
+    "Position": {
+      "type": "object",
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": 0,
+          "description": "X coordinate in inches"
+        },
+        "y": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Y coordinate in inches"
+        },
+        "width": {
+          "type": "number",
+          "minimum": 0.1,
+          "description": "Width in inches"
+        },
+        "height": {
+          "type": "number",
+          "minimum": 0.1,
+          "description": "Height in inches"
+        },
+        "z_index": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Stacking order"
+        }
+      }
+    },
+    "GridPosition": {
+      "type": "object",
+      "properties": {
+        "column_start": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12
+        },
+        "column_span": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12
+        },
+        "row_start": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "row_span": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        }
+      }
+    },
+    "Styling": {
+      "type": "object",
+      "properties": {
+        "font": {
+          "$ref": "#/definitions/Font"
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$",
+          "description": "Foreground color in hex"
+        },
+        "background": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$",
+          "description": "Background color in hex"
+        },
+        "alignment": {
+          "type": "string",
+          "enum": ["left", "center", "right", "justify"],
+          "default": "left"
+        },
+        "spacing": {
+          "$ref": "#/definitions/Spacing"
+        },
+        "borders": {
+          "$ref": "#/definitions/Borders"
+        },
+        "lists": {
+          "$ref": "#/definitions/ListStyle"
+        },
+        "tables": {
+          "$ref": "#/definitions/TableStyle"
+        }
+      }
+    },
+    "Font": {
+      "type": "object",
+      "properties": {
+        "family": {
+          "type": "string",
+          "default": "Arial"
+        },
+        "size_pt": {
+          "type": "integer",
+          "minimum": 6,
+          "maximum": 72,
+          "default": 11
+        },
+        "weight": {
+          "type": "string",
+          "enum": ["normal", "medium", "semibold", "bold"],
+          "default": "normal"
+        },
+        "style": {
+          "type": "string",
+          "enum": ["normal", "italic"],
+          "default": "normal"
+        },
+        "caps": {
+          "type": "string",
+          "enum": ["none", "uppercase", "lowercase", "capitalize"],
+          "default": "none"
+        }
+      }
+    },
+    "Spacing": {
+      "type": "object",
+      "properties": {
+        "margin_top": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Top margin in inches"
+        },
+        "margin_bottom": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Bottom margin in inches"
+        },
+        "margin_left": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Left margin in inches"
+        },
+        "margin_right": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Right margin in inches"
+        },
+        "line_height": {
+          "type": "number",
+          "minimum": 1.0,
+          "maximum": 3.0,
+          "description": "Line height multiplier"
+        }
+      }
+    },
+    "Borders": {
+      "type": "object",
+      "properties": {
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$"
+        },
+        "width_pt": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "style": {
+          "type": "string",
+          "enum": ["solid", "dashed", "dotted", "none"],
+          "default": "solid"
+        }
+      }
+    },
+    "ListStyle": {
+      "type": "object",
+      "properties": {
+        "style": {
+          "type": "string",
+          "enum": ["bullet", "numbered", "custom"]
+        },
+        "indent_level": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        }
+      }
+    },
+    "TableStyle": {
+      "type": "object",
+      "properties": {
+        "column_widths": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0.5
+          },
+          "description": "Column widths in inches"
+        },
+        "header_styling": {
+          "type": "object",
+          "properties": {
+            "background": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}$"
+            },
+            "color": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}$"
+            },
+            "bold": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        },
+        "zebra_striping": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    }
+  }
+}

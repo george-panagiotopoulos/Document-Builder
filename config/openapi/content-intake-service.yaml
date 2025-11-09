@@ -1,0 +1,384 @@
+openapi: 3.0.3
+info:
+  title: Content Intake Service API
+  description: |
+    The Content Intake Service receives source material, intent metadata, and assets from the user agent.
+    It validates and normalizes the submission, assembles a Content-Intent Package (CIP), and coordinates
+    downstream calls to the Gestalt Design Engine.
+  version: 1.0.0
+  contact:
+    name: Document Builder Platform Team
+    email: platform@document-builder.internal
+
+servers:
+  - url: https://intake.document-builder.internal/v1
+    description: Production server
+  - url: https://intake-staging.document-builder.internal/v1
+    description: Staging server
+
+security:
+  - bearerAuth: []
+
+paths:
+  /intake/sessions:
+    post:
+      summary: Create an intake session
+      description: Upload content payload and create a new intake session
+      operationId: createIntakeSession
+      tags:
+        - Intake Sessions
+      security:
+        - bearerAuth: [intake.create]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSessionRequest'
+      responses:
+        '201':
+          description: Session created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /intake/sessions/{session_id}:
+    get:
+      summary: Retrieve session metadata
+      description: Get session metadata, processing state, and downstream artifact references
+      operationId: getIntakeSession
+      tags:
+        - Intake Sessions
+      security:
+        - bearerAuth: [intake.read]
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Session details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      summary: Cancel and purge a session
+      description: Cancel and purge a session that has not been rendered
+      operationId: deleteIntakeSession
+      tags:
+        - Intake Sessions
+      security:
+        - bearerAuth: [intake.manage]
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '204':
+          description: Session deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Cannot delete session that has been rendered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /intake/sessions/{session_id}/submit:
+    post:
+      summary: Finalize content and trigger layout generation
+      description: Finalize content, trigger layout generation in the Gestalt Design Engine
+      operationId: submitIntakeSession
+      tags:
+        - Intake Sessions
+      security:
+        - bearerAuth: [intake.create]
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - name: Idempotency-Key
+          in: header
+          description: Idempotency key for retry safety
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitSessionRequest'
+      responses:
+        '202':
+          description: Session submitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Session already submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /intake/sessions/{session_id}/artifacts:
+    get:
+      summary: List generated artifacts
+      description: List generated layout specifications and final document artifact IDs
+      operationId: listSessionArtifacts
+      tags:
+        - Intake Sessions
+      security:
+        - bearerAuth: [intake.read]
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Artifacts list retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    SessionId:
+      name: session_id
+      in: path
+      required: true
+      description: Unique session identifier
+      schema:
+        type: string
+        pattern: '^sess-[a-zA-Z0-9\-]+$'
+        example: sess-12345
+
+  schemas:
+    CreateSessionRequest:
+      type: object
+      required:
+        - content_blocks
+        - design_intent
+      properties:
+        content_blocks:
+          type: array
+          maxItems: 1000
+          items:
+            $ref: '#/components/schemas/ContentBlock'
+        images:
+          type: array
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/ImageAsset'
+        design_intent:
+          $ref: '#/components/schemas/DesignIntent'
+        constraints:
+          $ref: '#/components/schemas/Constraints'
+
+    ContentBlock:
+      type: object
+      required:
+        - type
+        - text
+      properties:
+        type:
+          type: string
+          enum: [heading, paragraph, list, quote, table, callout]
+        level:
+          type: integer
+          minimum: 0
+          maximum: 6
+          default: 0
+        text:
+          type: string
+          maxLength: 10000
+        language:
+          type: string
+          pattern: '^[a-z]{2}$'
+          default: en
+
+    ImageAsset:
+      type: object
+      required:
+        - uri
+        - format
+        - alt_text
+      properties:
+        uri:
+          type: string
+          format: uri
+        format:
+          type: string
+          enum: [png, jpg, jpeg, svg]
+        alt_text:
+          type: string
+          maxLength: 500
+
+    DesignIntent:
+      type: object
+      required:
+        - purpose
+        - audience
+      properties:
+        purpose:
+          type: string
+          enum: [report, presentation, proposal, playbook]
+        audience:
+          type: string
+          enum: [executive, technical, customer, internal]
+        tone:
+          type: string
+          enum: [formal, conversational, persuasive, educational]
+          default: formal
+        goals:
+          type: array
+          items:
+            type: string
+
+    Constraints:
+      type: object
+      properties:
+        visual_density:
+          type: string
+          enum: [tight, balanced, airy]
+          default: balanced
+        color_policy:
+          type: object
+          properties:
+            primary:
+              type: string
+              pattern: '^#[0-9A-Fa-f]{6}$'
+
+    SubmitSessionRequest:
+      type: object
+      properties:
+        layout_mode:
+          type: string
+          enum: [rule_only, ai_assist, ai_full]
+          default: rule_only
+
+    SessionResponse:
+      type: object
+      required:
+        - session_id
+        - status
+        - created_at
+      properties:
+        session_id:
+          type: string
+          example: sess-12345
+        status:
+          type: string
+          enum: [draft, normalizing, ready, layout_queued, layout_processing, layout_complete, failed]
+        created_at:
+          type: string
+          format: date-time
+        proposal_id:
+          type: string
+          example: lsp-78901
+
+    ArtifactsResponse:
+      type: object
+      properties:
+        session_id:
+          type: string
+        artifacts:
+          type: array
+          items:
+            type: object
+            properties:
+              artifact_id:
+                type: string
+              type:
+                type: string
+                enum: [layout_specification, word_document, powerpoint_presentation]
+              status:
+                type: string
+                enum: [pending, complete, failed]
+
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              issue:
+                type: string
+        trace_id:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Unauthorized - invalid or missing JWT token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UnprocessableEntity:
+      description: Validation failure
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    TooManyRequests:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      headers:
+        Retry-After:
+          description: Number of seconds to wait before retrying
+          schema:
+            type: integer
