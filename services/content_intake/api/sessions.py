@@ -8,6 +8,7 @@ intake sessions according to the OpenAPI specification.
 from fastapi import APIRouter, HTTPException, Header, status, Depends
 from typing import Annotated
 from sqlalchemy.orm import Session
+import logging
 
 from services.content_intake.models.session import (
     CreateSessionRequest,
@@ -18,6 +19,8 @@ from services.content_intake.models.session import (
 )
 from services.content_intake.services.session_service import SessionService
 from services.content_intake.database.connection import get_db
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -48,8 +51,10 @@ async def create_session(
             proposal_id=session.proposal_id,
         )
     except ValueError as e:
+        logger.warning(f"Validation error creating session: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
     except Exception as e:
+        logger.error(f"Error creating session: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 

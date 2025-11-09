@@ -15,6 +15,8 @@ class RenderService:
         self._jobs: dict[str, RenderJob] = {}
         self._word_renderer = WordRenderer()
         self._pptx_renderer = PowerPointRenderer()
+        # Track artifact IDs for lookup
+        self._artifact_to_job: dict[str, str] = {}
 
     async def render_document(self, lsp: dict[str, Any]) -> RenderJob:
         """Render Word document from LSP."""
@@ -32,6 +34,8 @@ class RenderService:
             artifact_id = await self._word_renderer.render(lsp)
             job.artifact_id = artifact_id
             job.status = RenderJobStatus.COMPLETE
+            # Track artifact for lookup
+            self._artifact_to_job[artifact_id] = job.render_job_id
         except Exception as e:
             job.status = RenderJobStatus.FAILED
             job.error = str(e)
@@ -54,6 +58,8 @@ class RenderService:
             artifact_id = await self._pptx_renderer.render(lsp)
             job.artifact_id = artifact_id
             job.status = RenderJobStatus.COMPLETE
+            # Track artifact for lookup
+            self._artifact_to_job[artifact_id] = job.render_job_id
         except Exception as e:
             job.status = RenderJobStatus.FAILED
             job.error = str(e)

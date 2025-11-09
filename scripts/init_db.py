@@ -25,8 +25,16 @@ def run_migrations() -> None:
     """Run Alembic migrations."""
     logger.info("Running database migrations...")
 
-    alembic_cfg = Config("alembic.ini")
-    command.upgrade(alembic_cfg, "head")
+    # Alembic needs to be run from the infrastructure directory
+    # because script_location is relative to alembic.ini location
+    import os
+    original_dir = os.getcwd()
+    try:
+        os.chdir("infrastructure")
+        alembic_cfg = Config("alembic.ini")
+        command.upgrade(alembic_cfg, "head")
+    finally:
+        os.chdir(original_dir)
 
     logger.info("Migrations completed successfully")
 

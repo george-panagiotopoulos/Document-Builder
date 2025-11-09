@@ -23,16 +23,21 @@ dist/
 *.egg-info/
 
 # Logs and Reports
-logs/
+infrastructure/logs/
 *.log
-coverage/
+infrastructure/test-reports/
+.coverage
+htmlcov/
+# Coverage file may be generated in root by some tools
+.coverage
+# Pytest cache (created in root by pytest, cannot be configured)
 .pytest_cache/
 
 # Service management
-.service_pids
+infrastructure/runtime/.service_pids
 
 # Artifacts
-artifacts/
+infrastructure/data/artifacts/
 
 # Git worktrees
 worktrees/

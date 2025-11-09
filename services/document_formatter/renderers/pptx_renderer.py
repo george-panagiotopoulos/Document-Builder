@@ -16,14 +16,19 @@ logger = logging.getLogger(__name__)
 class PowerPointRenderer:
     """Renders PowerPoint presentations from Layout Specification Packages."""
 
-    def __init__(self, output_dir: str = "artifacts") -> None:
+    def __init__(self, output_dir: str | None = None) -> None:
         """
         Initialize PowerPoint renderer.
 
         Args:
-            output_dir: Directory to save generated presentations
+            output_dir: Directory to save generated presentations (defaults to infrastructure/data/artifacts)
         """
-        self.output_dir = Path(output_dir)
+        if output_dir is None:
+            # Use absolute path relative to project root
+            from pathlib import Path
+            project_root = Path(__file__).parent.parent.parent.parent.resolve()
+            output_dir = project_root / "infrastructure" / "data" / "artifacts"
+        self.output_dir = Path(output_dir).resolve()
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     async def render(self, lsp: dict[str, Any]) -> str:
@@ -52,6 +57,8 @@ class PowerPointRenderer:
         title = metadata.get("title", "Untitled Presentation")
 
         logger.info(f"Rendering PowerPoint presentation: {title} with {len(structure)} slides")
+        logger.debug(f"Content map has {len(lsp.get('content_map', {}))} entries: {list(lsp.get('content_map', {}).keys())[:5]}")
+        logger.debug(f"First structure unit has {len(structure[0].get('elements', [])) if structure else 0} elements")
 
         # Iterate through structure units (slides)
         for unit_idx, unit in enumerate(structure):
@@ -134,19 +141,30 @@ class PowerPointRenderer:
             # Resolve content
             content_text = self._resolve_content(content_ref, lsp)
 
-            if not content_text:
+            if not content_text or content_text.startswith("[Missing content"):
+                logger.warning(f"Skipping element with missing content: content_ref={content_ref}, "
+                             f"content_map_keys={list(lsp.get('content_map', {}).keys())[:5]}")
                 continue
 
             if element_type == "text":
+                # For long text, split into multiple text boxes or use word wrap
                 # Get position (convert from LSP inches to python-pptx)
                 left = Inches(position.get("x", 1.0))
                 top = Inches(position.get("y", 1.5 + idx * 0.8))
                 width = Inches(position.get("width", 8.5))
-                height = Inches(position.get("height", 0.5))
+                # Increase height for long text to allow word wrapping
+                base_height = position.get("height", 0.5)
+                if len(content_text) > 200:
+                    # Estimate height based on text length (rough: 50 chars per line)
+                    estimated_lines = max(1, len(content_text) // 50)
+                    height = Inches(min(base_height * estimated_lines, 5.0))  # Max 5 inches
+                else:
+                    height = Inches(base_height)
 
-                # Add text box
+                # Add text box with word wrap enabled
                 textbox = slide.shapes.add_textbox(left, top, width, height)
                 text_frame = textbox.text_frame
+                text_frame.word_wrap = True
                 text_frame.text = content_text
 
                 # Apply styling

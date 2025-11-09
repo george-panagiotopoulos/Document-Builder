@@ -36,8 +36,8 @@ cd /path/to/Document-Builder/worktrees/content-intake
 # Run migrations
 python scripts/init_db.py
 
-# Or use Alembic directly
-alembic upgrade head
+# Or use Alembic directly (from project root)
+alembic -c infrastructure/alembic.ini upgrade head
 ```
 
 ## Database Schema
@@ -69,38 +69,38 @@ The database includes the following tables:
 
 ```bash
 # Auto-generate migration from model changes
-alembic revision --autogenerate -m "Description of changes"
+alembic -c infrastructure/alembic.ini revision --autogenerate -m "Description of changes"
 
 # Create an empty migration
-alembic revision -m "Description of changes"
+alembic -c infrastructure/alembic.ini revision -m "Description of changes"
 ```
 
 ### Run Migrations
 
 ```bash
 # Upgrade to latest
-alembic upgrade head
+alembic -c infrastructure/alembic.ini upgrade head
 
 # Upgrade to specific version
-alembic upgrade <revision>
+alembic -c infrastructure/alembic.ini upgrade <revision>
 
 # Downgrade one version
-alembic downgrade -1
+alembic -c infrastructure/alembic.ini downgrade -1
 
 # Downgrade to specific version
-alembic downgrade <revision>
+alembic -c infrastructure/alembic.ini downgrade <revision>
 ```
 
 ### Check Current Version
 
 ```bash
-alembic current
+alembic -c infrastructure/alembic.ini current
 ```
 
 ### View Migration History
 
 ```bash
-alembic history
+alembic -c infrastructure/alembic.ini history
 ```
 
 ## Environment Variables
@@ -150,7 +150,7 @@ telnet localhost 5432
 docker exec -it document-builder-postgres psql -U docbuilder -d document_builder -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
 
 # Re-run migrations
-alembic upgrade head
+alembic -c infrastructure/alembic.ini upgrade head
 ```
 
 ### Permission Errors

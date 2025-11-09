@@ -15,14 +15,18 @@ logger = logging.getLogger(__name__)
 class WordRenderer:
     """Renders Word documents from Layout Specification Packages."""
 
-    def __init__(self, output_dir: str = "artifacts") -> None:
+    def __init__(self, output_dir: str | None = None) -> None:
         """
         Initialize Word renderer.
 
         Args:
-            output_dir: Directory to save generated documents
+            output_dir: Directory to save generated documents (defaults to infrastructure/data/artifacts)
         """
-        self.output_dir = Path(output_dir)
+        if output_dir is None:
+            # Use absolute path relative to project root
+            project_root = Path(__file__).parent.parent.parent.parent.resolve()
+            output_dir = project_root / "infrastructure" / "data" / "artifacts"
+        self.output_dir = Path(output_dir).resolve()
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     async def render(self, lsp: dict[str, Any]) -> str:
@@ -49,6 +53,8 @@ class WordRenderer:
         doc.core_properties.title = title
 
         logger.info(f"Rendering Word document: {title} with {len(structure)} pages")
+        logger.debug(f"Content map has {len(lsp.get('content_map', {}))} entries: {list(lsp.get('content_map', {}).keys())[:5]}")
+        logger.debug(f"First structure unit has {len(structure[0].get('elements', [])) if structure else 0} elements")
 
         # Iterate through structure units (pages/sections)
         for unit_idx, unit in enumerate(structure):
@@ -98,21 +104,45 @@ class WordRenderer:
         # Resolve content from CIP if content_ref is provided
         content_text = self._resolve_content(content_ref, lsp)
 
-        if not content_text:
+        if not content_text or content_text.startswith("[Missing content"):
+            logger.warning(f"Skipping element with missing content: content_ref={content_ref}, "
+                         f"content_map_keys={list(lsp.get('content_map', {}).keys())[:5]}")
             return
 
         if element_type == "text":
             # Determine hierarchy level
             hierarchy_level = gestalt_rules.get("hierarchy_level", 4)
 
-            # Add as heading or paragraph
-            if hierarchy_level <= 3:
-                paragraph = doc.add_heading(content_text, level=hierarchy_level)
+            # For long paragraphs, split into sentences for better readability
+            # Split on sentence boundaries (period + space, but preserve the period)
+            if len(content_text) > 500 and hierarchy_level >= 4:
+                # Split into sentences (simple heuristic: period followed by space or end)
+                import re
+                sentences = re.split(r'(?<=[.!?])\s+', content_text)
+                # Filter out empty sentences
+                sentences = [s.strip() for s in sentences if s.strip()]
+                
+                # Add first sentence as paragraph
+                if sentences:
+                    if hierarchy_level <= 3:
+                        paragraph = doc.add_heading(sentences[0], level=hierarchy_level)
+                    else:
+                        paragraph = doc.add_paragraph(sentences[0])
+                    self._apply_styling(paragraph, styling)
+                    
+                    # Add remaining sentences as separate paragraphs
+                    for sentence in sentences[1:]:
+                        paragraph = doc.add_paragraph(sentence)
+                        self._apply_styling(paragraph, styling)
             else:
-                paragraph = doc.add_paragraph(content_text)
+                # Add as heading or paragraph (original behavior)
+                if hierarchy_level <= 3:
+                    paragraph = doc.add_heading(content_text, level=hierarchy_level)
+                else:
+                    paragraph = doc.add_paragraph(content_text)
 
-            # Apply styling
-            self._apply_styling(paragraph, styling)
+                # Apply styling
+                self._apply_styling(paragraph, styling)
 
         elif element_type == "image":
             # For images, content_ref points to image_id

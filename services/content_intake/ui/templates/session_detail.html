@@ -5,59 +5,436 @@
 {% block content %}
 <meta name="session-id" content="{{ session_id }}">
 
-<h2>Session Details</h2>
+<h2>Document Generation Workflow</h2>
 
-<div id="session-detail">
-    <!-- Session details will be loaded here -->
-    <div class="spinner"></div>
+<!-- Workflow Progress Indicator -->
+<div class="card" style="margin-bottom: 2rem;">
+    <div class="card-header">Workflow Progress</div>
+    <div id="workflow-progress" class="workflow-progress">
+        <!-- Will be populated by JavaScript -->
+    </div>
 </div>
 
-<div class="card">
+<!-- Session Information -->
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header">Session Information</div>
+    <div id="session-detail">
+        <div class="spinner"></div>
+    </div>
+</div>
+
+<!-- Actions -->
+<div class="card" style="margin-bottom: 1rem;">
     <div class="card-header">Actions</div>
-    <button id="submit-session-btn" class="btn btn-primary" onclick="submitSession('{{ session_id }}')" disabled>
-        Submit for Layout Generation
-    </button>
-    <a href="/" class="btn btn-outline" style="margin-left: 1rem;">Back to Home</a>
+    <div id="actions-container">
+        <button id="submit-session-btn" class="btn btn-primary" onclick="submitSession('{{ session_id }}')" disabled>
+            Submit for Layout Generation
+        </button>
+        <button id="render-documents-btn" class="btn btn-success" onclick="renderDocuments('{{ session_id }}')" style="display: none;">
+            Generate Documents (DOCX & PPTX)
+        </button>
+        <a href="/" class="btn btn-outline" style="margin-left: 1rem;">Back to Home</a>
+    </div>
 </div>
 
+<!-- Generated Documents -->
 <div class="card">
-    <div class="card-header">Artifacts</div>
-    <div id="artifacts-list">
-        <p class="text-secondary">Loading artifacts...</p>
+    <div class="card-header">Generated Documents</div>
+    <div id="documents-list">
+        <p class="text-secondary">No documents generated yet.</p>
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-// Load artifacts
-async function loadArtifacts(sessionId) {
+// Workflow states mapping (scoped to avoid conflicts)
+(function() {
+'use strict';
+
+const WORKFLOW_STATES = [
+    { id: 'draft', label: 'Draft', icon: '📝' },
+    { id: 'ready', label: 'Ready', icon: '✓' },
+    { id: 'layout_queued', label: 'Layout Queued', icon: '⏳' },
+    { id: 'layout_processing', label: 'Generating Layout', icon: '⚙️' },
+    { id: 'layout_complete', label: 'Layout Complete', icon: '✅' },
+    { id: 'rendering', label: 'Rendering Documents', icon: '🎨' },
+    { id: 'complete', label: 'Complete', icon: '🎉' }
+];
+
+// Render workflow progress
+window.renderWorkflowProgress = function(currentStatus) {
+    const container = document.getElementById('workflow-progress');
+    if (!container) {
+        console.error('Workflow progress container not found');
+        return;
+    }
+
+    // Map session status to workflow state
+    const statusMap = {
+        'draft': 'draft',
+        'normalizing': 'draft',
+        'ready': 'ready',
+        'layout_queued': 'layout_queued',
+        'layout_processing': 'layout_processing',
+        'layout_complete': 'layout_complete',
+        'rendering': 'rendering',
+        'complete': 'complete',
+        'failed': 'failed'
+    };
+    
+    const mappedStatus = statusMap[currentStatus] || 'draft';
+    const currentIndex = WORKFLOW_STATES.findIndex(s => s.id === mappedStatus);
+    const statusIndex = currentIndex >= 0 ? currentIndex : 0;
+
+    let html = '<div class="workflow-steps">';
+    
+    WORKFLOW_STATES.forEach((state, index) => {
+        const isActive = index <= statusIndex;
+        const isCurrent = index === statusIndex;
+        const isComplete = index < statusIndex;
+        
+        html += `
+            <div class="workflow-step ${isActive ? 'active' : ''} ${isCurrent ? 'current' : ''} ${isComplete ? 'complete' : ''}">
+                <div class="workflow-step-dot">
+                    ${isComplete ? '✓' : state.icon}
+                </div>
+                <div class="workflow-step-label">${state.label}</div>
+            </div>
+            ${index < WORKFLOW_STATES.length - 1 ? '<div class="workflow-step-connector ' + (isActive ? 'active' : '') + '"></div>' : ''}
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+// Load session and update UI
+window.loadSession = async function(sessionId) {
     try {
-        const response = await fetch(`/v1/intake/sessions/${sessionId}/artifacts`);
-        if (!response.ok) throw new Error('Failed to load artifacts');
+        const response = await fetch(`/v1/intake/sessions/${sessionId}`);
+        if (!response.ok) throw new Error('Session not found');
 
-        const data = await response.json();
-        const container = document.getElementById('artifacts-list');
+        const session = await response.json();
+        
+        // Update session detail
+        renderSessionDetail(session);
+        
+        // Update workflow progress
+        renderWorkflowProgress(session.status);
+        
+        // Update action buttons
+        updateActionButtons(session);
+        
+        // Load documents if layout is complete
+        if (session.status === 'layout_complete' || session.status === 'ready') {
+            loadDocuments(sessionId);
+        }
+        
+        // Start polling if needed
+        if (['layout_queued', 'layout_processing'].includes(session.status)) {
+            startSessionStatusPolling(sessionId);
+        } else if (session.status === 'layout_complete') {
+            // Auto-trigger rendering if not already done
+            checkAndTriggerRendering(sessionId);
+        }
 
-        if (data.artifacts.length === 0) {
-            container.innerHTML = '<p class="text-secondary">No artifacts available yet.</p>';
+    } catch (error) {
+        console.error('Error loading session:', error);
+        showAlert(`Error: ${error.message}`, 'error');
+    }
+}
+
+window.renderSessionDetail = function(session) {
+    const container = document.getElementById('session-detail');
+    if (!container) return;
+
+    const statusClass = `status-${session.status.replace('_', '-')}`;
+    container.innerHTML = `
+        <p><strong>Session ID:</strong> ${session.session_id}</p>
+        <p><strong>Status:</strong> <span class="status-badge ${statusClass}">${session.status}</span></p>
+        <p><strong>Created:</strong> ${new Date(session.created_at).toLocaleString()}</p>
+        ${session.proposal_id ? `<p><strong>Proposal ID:</strong> ${session.proposal_id}</p>` : ''}
+        ${session.error_message ? `<p class="text-error"><strong>Error:</strong> ${session.error_message}</p>` : ''}
+    `;
+}
+
+window.updateActionButtons = function(session) {
+    const submitBtn = document.getElementById('submit-session-btn');
+    const renderBtn = document.getElementById('render-documents-btn');
+    
+    if (submitBtn) {
+        submitBtn.disabled = !['draft', 'ready'].includes(session.status);
+    }
+    
+    if (renderBtn) {
+        if (session.status === 'layout_complete') {
+            renderBtn.style.display = 'inline-block';
         } else {
-            container.innerHTML = data.artifacts.map(artifact => `
-                <div class="content-block">
-                    <p><strong>Type:</strong> ${artifact.type}</p>
-                    <p><strong>ID:</strong> ${artifact.artifact_id}</p>
-                    <p><strong>Status:</strong> <span class="status-badge status-${artifact.status}">${artifact.status}</span></p>
+            renderBtn.style.display = 'none';
+        }
+    }
+}
+
+// Check and trigger rendering automatically
+window.checkAndTriggerRendering = async function(sessionId) {
+    // Check if documents already exist
+    const docs = await loadDocuments(sessionId);
+    if (docs && docs.length > 0) {
+        return; // Already rendered
+    }
+    
+    // Auto-trigger rendering
+    await renderDocuments(sessionId);
+}
+
+// Render documents (DOCX and PPTX)
+window.renderDocuments = async function(sessionId) {
+    showLoading();
+    
+    try {
+        // Get session to get proposal_id
+        const sessionResponse = await fetch(`/v1/intake/sessions/${sessionId}`);
+        if (!sessionResponse.ok) throw new Error('Session not found');
+        const session = await sessionResponse.json();
+        
+        if (!session.proposal_id) {
+            throw new Error('No proposal ID available. Layout must be complete first.');
+        }
+        
+        // Get layout specification
+        const lspResponse = await fetch(`http://localhost:8002/v1/layout/proposals/${session.proposal_id}/spec`);
+        if (!lspResponse.ok) throw new Error('Failed to get layout specification');
+        const lsp = await lspResponse.json();
+        
+        // Render Word document
+        showAlert('Rendering Word document...', 'info');
+        const wordResponse = await fetch('http://localhost:8003/v1/render/documents', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ layout_specification: lsp })
+        });
+        if (!wordResponse.ok) throw new Error('Failed to render Word document');
+        const wordJob = await wordResponse.json();
+        lastRenderJobs.word = wordJob.render_job_id;
+        
+        // Render PowerPoint presentation
+        showAlert('Rendering PowerPoint presentation...', 'info');
+        const lspPptx = { ...lsp, document_type: 'powerpoint' };
+        const pptxResponse = await fetch('http://localhost:8003/v1/render/presentations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ layout_specification: lspPptx })
+        });
+        if (!pptxResponse.ok) throw new Error('Failed to render PowerPoint presentation');
+        const pptxJob = await pptxResponse.json();
+        lastRenderJobs.pptx = pptxJob.render_job_id;
+        
+        showAlert('Documents rendered successfully!', 'success');
+        
+        // Update workflow progress
+        renderWorkflowProgress('rendering');
+        
+        // Poll for document completion
+        pollDocumentStatus(sessionId);
+        
+    } catch (error) {
+        console.error('Error rendering documents:', error);
+        showAlert(`Error: ${error.message}`, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+// Load generated documents
+window.lastRenderJobs = { word: null, pptx: null };
+
+window.loadDocuments = async function(sessionId) {
+    const container = document.getElementById('documents-list');
+    if (!container) return;
+    
+    try {
+        // If we have render job IDs, check their status
+        const documents = [];
+        
+        if (lastRenderJobs.word) {
+            try {
+                const response = await fetch(`http://localhost:8003/v1/render/jobs/${lastRenderJobs.word}`);
+                if (response.ok) {
+                    const job = await response.json();
+                    if (job.artifact_id) {
+                        documents.push({
+                            type: 'Word Document',
+                            format: 'DOCX',
+                            artifact_id: job.artifact_id,
+                            status: job.status,
+                            download_url: `http://localhost:8003/v1/artifacts/${job.artifact_id}/download`
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error('Error checking Word job:', e);
+            }
+        }
+        
+        if (lastRenderJobs.pptx) {
+            try {
+                const response = await fetch(`http://localhost:8003/v1/render/jobs/${lastRenderJobs.pptx}`);
+                if (response.ok) {
+                    const job = await response.json();
+                    if (job.artifact_id) {
+                        documents.push({
+                            type: 'PowerPoint Presentation',
+                            format: 'PPTX',
+                            artifact_id: job.artifact_id,
+                            status: job.status,
+                            download_url: `http://localhost:8003/v1/artifacts/${job.artifact_id}/download`
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error('Error checking PPTX job:', e);
+            }
+        }
+        
+        if (documents.length === 0) {
+            container.innerHTML = '<p class="text-secondary">No documents generated yet. Click "Generate Documents" to start.</p>';
+        } else {
+            container.innerHTML = documents.map(doc => `
+                <div class="document-item">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <p><strong>${doc.type}</strong> (${doc.format})</p>
+                            <p class="text-secondary">Status: <span class="status-badge status-${doc.status}">${doc.status}</span></p>
+                            <p><small>Artifact ID: ${doc.artifact_id}</small></p>
+                        </div>
+                        ${doc.status === 'complete' ? `
+                            <a href="${doc.download_url}" class="btn btn-primary" download>
+                                Download ${doc.format}
+                            </a>
+                        ` : '<span class="text-secondary">Processing...</span>'}
+                    </div>
                 </div>
             `).join('');
         }
     } catch (error) {
-        console.error('Error loading artifacts:', error);
+        console.error('Error loading documents:', error);
+        container.innerHTML = '<p class="text-error">Error loading documents: ' + error.message + '</p>';
     }
 }
 
-// Load artifacts on page load
+// Status polling (use different variable name to avoid conflict with app.js)
+let sessionStatusPollInterval = null;
+
+function startSessionStatusPolling(sessionId) {
+    stopSessionStatusPolling();
+    sessionStatusPollInterval = setInterval(() => {
+        checkSessionStatus(sessionId);
+    }, 2000);
+}
+
+function stopSessionStatusPolling() {
+    if (sessionStatusPollInterval) {
+        clearInterval(sessionStatusPollInterval);
+        sessionStatusPollInterval = null;
+    }
+}
+
+window.checkSessionStatus = async function(sessionId) {
+    try {
+        const response = await fetch(`/v1/intake/sessions/${sessionId}/check-status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        if (!response.ok) {
+            if (response.status === 404) {
+                stopSessionStatusPolling();
+            }
+            return;
+        }
+
+        const session = await response.json();
+        renderSessionDetail(session);
+        renderWorkflowProgress(session.status);
+        updateActionButtons(session);
+
+        if (!['layout_queued', 'layout_processing'].includes(session.status)) {
+            stopSessionStatusPolling();
+            if (session.status === 'layout_complete') {
+                checkAndTriggerRendering(sessionId);
+            }
+        }
+    } catch (error) {
+        console.error('Error checking status:', error);
+        stopSessionStatusPolling();
+    }
+}
+
+// Submit session
+window.submitSession = async function(sessionId) {
+    if (!confirm('Submit this session for layout generation?')) return;
+
+    showLoading();
+    try {
+        const response = await fetch(`/v1/intake/sessions/${sessionId}/submit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ layout_mode: 'rule_only' })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to submit session');
+        }
+
+        showAlert('Session submitted successfully!', 'success');
+        setTimeout(() => {
+            loadSession(sessionId);
+            startSessionStatusPolling(sessionId);
+        }, 1000);
+    } catch (error) {
+        showAlert(`Error: ${error.message}`, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+// Poll for document completion
+window.pollDocumentStatus = function(sessionId) {
+    const pollInterval = setInterval(async () => {
+        await loadDocuments(sessionId);
+        
+        // Check if both documents are complete
+        const container = document.getElementById('documents-list');
+        if (container && container.textContent.includes('complete')) {
+            clearInterval(pollInterval);
+            renderWorkflowProgress('complete');
+        }
+    }, 2000);
+    
+    // Stop polling after 60 seconds
+    setTimeout(() => clearInterval(pollInterval), 60000);
+}
+
+// Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
-    loadArtifacts('{{ session_id }}');
+    const sessionId = '{{ session_id }}';
+    // Render initial workflow state
+    if (typeof renderWorkflowProgress === 'function') {
+        renderWorkflowProgress('draft');
+    }
+    // Load session
+    if (typeof loadSession === 'function') {
+        loadSession(sessionId);
+    }
 });
+
+window.addEventListener('beforeunload', () => {
+    if (typeof stopSessionStatusPolling === 'function') {
+        stopSessionStatusPolling();
+    }
+});
+})(); // End IIFE
 </script>
+<script src="/static/app.js"></script>
 {% endblock %}

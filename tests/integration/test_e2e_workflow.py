@@ -261,7 +261,7 @@ async def test_end_to_end_workflow():
         print("")
 
         # Check that files were created
-        artifacts_dir = Path("artifacts")
+        artifacts_dir = Path("infrastructure/data/artifacts")
         if artifacts_dir.exists():
             pptx_file = artifacts_dir / f"{pptx_job.get('artifact_id')}.pptx"
             word_file = artifacts_dir / f"{word_job.get('artifact_id')}.docx"

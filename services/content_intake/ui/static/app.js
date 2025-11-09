@@ -195,6 +195,8 @@ async function createSession(event) {
 }
 
 // Session Detail
+let statusPollInterval = null;
+
 async function loadSession(sessionId) {
     showLoading();
 
@@ -208,10 +210,92 @@ async function loadSession(sessionId) {
         const session = await response.json();
         renderSessionDetail(session);
 
+        // Start polling if status indicates processing
+        if (session.status && ['layout_queued', 'layout_processing'].includes(session.status)) {
+            startStatusPolling(sessionId);
+        } else if (session.status === 'layout_complete') {
+            // Load artifacts immediately if already complete
+            if (typeof window.loadArtifacts === 'function') {
+                window.loadArtifacts(sessionId);
+            }
+        }
+
     } catch (error) {
         showAlert(`Error: ${error.message}`, 'error');
     } finally {
         hideLoading();
+    }
+}
+
+async function checkSessionStatus(sessionId) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}/check-status`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        if (!response.ok) {
+            // If 404 or other error, stop polling to avoid spam
+            if (response.status === 404) {
+                stopStatusPolling();
+            }
+            return;
+        }
+
+        const session = await response.json();
+        renderSessionDetail(session);
+
+        // Stop polling if status is final
+        if (session.status && !['layout_queued', 'layout_processing'].includes(session.status)) {
+            stopStatusPolling();
+            // Reload artifacts when complete
+            if (session.status === 'layout_complete') {
+                // Trigger artifacts reload - use window.loadArtifacts if available, otherwise fetch directly
+                if (typeof window.loadArtifacts === 'function') {
+                    window.loadArtifacts(sessionId);
+                } else {
+                    // Fallback: fetch artifacts directly
+                    fetch(`/v1/intake/sessions/${sessionId}/artifacts`)
+                        .then(r => r.json())
+                        .then(data => {
+                            const container = document.getElementById('artifacts-list');
+                            if (container && data.artifacts && data.artifacts.length > 0) {
+                                container.innerHTML = data.artifacts.map(artifact => `
+                                    <div class="content-block">
+                                        <p><strong>Type:</strong> ${artifact.type}</p>
+                                        <p><strong>ID:</strong> ${artifact.artifact_id}</p>
+                                        <p><strong>Status:</strong> <span class="status-badge status-${artifact.status}">${artifact.status}</span></p>
+                                    </div>
+                                `).join('');
+                            }
+                        })
+                        .catch(err => console.error('Error loading artifacts:', err));
+                }
+            }
+        }
+
+    } catch (error) {
+        console.error('Error checking session status:', error);
+        // Stop polling on repeated errors to avoid spam
+        stopStatusPolling();
+    }
+}
+
+function startStatusPolling(sessionId) {
+    // Clear any existing polling
+    stopStatusPolling();
+    
+    // Poll every 2 seconds
+    statusPollInterval = setInterval(() => {
+        checkSessionStatus(sessionId);
+    }, 2000);
+}
+
+function stopStatusPolling() {
+    if (statusPollInterval) {
+        clearInterval(statusPollInterval);
+        statusPollInterval = null;
     }
 }
 
@@ -262,8 +346,11 @@ async function submitSession(sessionId) {
 
         showAlert('Session submitted successfully!', 'success');
 
-        // Reload session
-        setTimeout(() => loadSession(sessionId), 1000);
+        // Reload session and start polling
+        setTimeout(() => {
+            loadSession(sessionId);
+            startStatusPolling(sessionId);
+        }, 1000);
 
     } catch (error) {
         showAlert(`Error: ${error.message}`, 'error');
@@ -284,4 +371,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Render initial empty states
     renderContentBlocks();
     renderImages();
+});
+
+// Clean up polling when page unloads
+window.addEventListener('beforeunload', () => {
+    stopStatusPolling();
 });

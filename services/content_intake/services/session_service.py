@@ -8,6 +8,7 @@ Coordinates calls to downstream services like the Gestalt Design Engine.
 from typing import Any
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
+import logging
 
 from services.content_intake.models.session import (
     CreateSessionRequest,
@@ -19,8 +20,12 @@ from services.content_intake.database.models import (
     ContentBlockModel,
     ImageAssetModel,
     IdempotencyKeyModel,
+    SessionStatusEnum,
 )
 from services.content_intake.clients.gestalt_client import GestaltClient
+from services.content_intake.clients.formatter_client import FormatterClient
+
+logger = logging.getLogger(__name__)
 
 
 class SessionService:
@@ -35,6 +40,7 @@ class SessionService:
         """
         self.db = db
         self.gestalt_client = GestaltClient()
+        self.formatter_client = FormatterClient()
 
     async def create_session(
         self, request: CreateSessionRequest, idempotency_key: str | None = None
@@ -70,7 +76,7 @@ class SessionService:
 
         session_model = SessionModel(
             session_id=session_id,
-            status=SessionStatus.DRAFT,
+            status=SessionStatusEnum.DRAFT.value,  # Use enum value directly for PostgreSQL
             design_intent=request.design_intent.model_dump(),
             constraints=request.constraints.model_dump() if request.constraints else {},
         )
@@ -108,22 +114,26 @@ class SessionService:
             )
             self.db.add(image_model)
 
-        # Normalize content
-        await self._normalize_content(session_model)
+        try:
+            # Normalize content
+            await self._normalize_content(session_model)
 
-        # Store idempotency key
-        if idempotency_key:
-            idem_key = IdempotencyKeyModel(
-                idempotency_key=idempotency_key,
-                session_id=session_id,
-                expires_at=datetime.utcnow() + timedelta(hours=24),
-            )
-            self.db.add(idem_key)
+            # Store idempotency key
+            if idempotency_key:
+                idem_key = IdempotencyKeyModel(
+                    idempotency_key=idempotency_key,
+                    session_id=session_id,
+                    expires_at=datetime.utcnow() + timedelta(hours=24),
+                )
+                self.db.add(idem_key)
 
-        self.db.commit()
-        self.db.refresh(session_model)
+            self.db.commit()
+            self.db.refresh(session_model)
 
-        return self._model_to_response(session_model)
+            return self._model_to_response(session_model)
+        except Exception as e:
+            self.db.rollback()
+            raise
 
     async def get_session(self, session_id: str) -> SessionResponse | None:
         """Retrieve session by ID."""
@@ -152,7 +162,7 @@ class SessionService:
         if not session_model:
             raise ValueError("Session not found")
 
-        if session_model.status not in [SessionStatus.DRAFT, SessionStatus.READY]:
+        if session_model.status not in [SessionStatusEnum.DRAFT.value, SessionStatusEnum.READY.value]:
             raise ValueError(f"Cannot submit session in status {session_model.status}")
 
         # Build Content-Intent Package (CIP) for Gestalt Engine
@@ -200,7 +210,7 @@ class SessionService:
             )
 
             # Update session with proposal ID from Gestalt
-            session_model.status = SessionStatus.LAYOUT_QUEUED
+            session_model.status = SessionStatusEnum.LAYOUT_QUEUED.value
             session_model.proposal_id = proposal_response["proposal_id"]
             session_model.updated_at = datetime.utcnow()
 
@@ -211,7 +221,7 @@ class SessionService:
 
         except ValueError as e:
             # Update session to failed state
-            session_model.status = SessionStatus.FAILED
+            session_model.status = SessionStatusEnum.FAILED.value
             session_model.error_message = str(e)
             session_model.updated_at = datetime.utcnow()
             self.db.commit()
@@ -246,11 +256,11 @@ class SessionService:
             gestalt_status = proposal_status["status"]
 
             if gestalt_status == "processing":
-                session_model.status = SessionStatus.LAYOUT_PROCESSING
+                session_model.status = SessionStatusEnum.LAYOUT_PROCESSING.value
             elif gestalt_status == "complete":
-                session_model.status = SessionStatus.LAYOUT_COMPLETE
+                session_model.status = SessionStatusEnum.LAYOUT_COMPLETE.value
             elif gestalt_status == "failed":
-                session_model.status = SessionStatus.FAILED
+                session_model.status = SessionStatusEnum.FAILED.value
                 session_model.error_message = proposal_status.get("error", "Layout generation failed")
 
             session_model.updated_at = datetime.utcnow()
@@ -261,7 +271,7 @@ class SessionService:
 
         except ValueError as e:
             # If proposal not found in Gestalt, mark as failed
-            session_model.status = SessionStatus.FAILED
+            session_model.status = SessionStatusEnum.FAILED.value
             session_model.error_message = str(e)
             session_model.updated_at = datetime.utcnow()
             self.db.commit()
@@ -286,7 +296,7 @@ class SessionService:
                 {
                     "artifact_id": session_model.proposal_id,
                     "type": "layout_specification",
-                    "status": "complete" if session_model.status == SessionStatus.LAYOUT_COMPLETE else "pending",
+                    "status": "complete" if session_model.status == SessionStatusEnum.LAYOUT_COMPLETE.value else "pending",
                 }
             )
 
@@ -301,7 +311,7 @@ class SessionService:
         if not session_model:
             raise ValueError("Session not found")
 
-        if session_model.status == SessionStatus.LAYOUT_COMPLETE:
+        if session_model.status == SessionStatusEnum.LAYOUT_COMPLETE.value:
             raise ValueError("Cannot delete session that has been rendered")
 
         self.db.delete(session_model)
@@ -337,7 +347,7 @@ class SessionService:
                     block.detected_role = "supporting"
 
         # Update session status
-        session_model.status = SessionStatus.READY
+        session_model.status = SessionStatusEnum.READY.value
         session_model.updated_at = datetime.utcnow()
 
     def _model_to_response(self, session_model: SessionModel) -> SessionResponse:
@@ -376,9 +386,40 @@ class SessionService:
                 )
             )
 
+        # Convert database status value to response enum
+        # session_model.status should now always be a string from TypeDecorator
+        # But handle both cases for safety
+        status_value = None
+        if isinstance(session_model.status, SessionStatusEnum):
+            # Extract the actual value from the enum
+            status_value = session_model.status.value
+        elif isinstance(session_model.status, str):
+            # Already a string, use as-is
+            status_value = session_model.status
+        else:
+            # Try to get value attribute if it exists
+            if hasattr(session_model.status, 'value'):
+                status_value = session_model.status.value
+            else:
+                status_value = str(session_model.status)
+        
+        # Debug logging
+        logger.debug(f"Converting status for session {session_model.session_id}: "
+                    f"raw={session_model.status}, type={type(session_model.status)}, "
+                    f"value={status_value}")
+        
+        # Validate and convert to Pydantic enum
+        try:
+            response_status = SessionStatus(status_value)
+        except ValueError as e:
+            logger.error(f"Invalid status value '{status_value}' (raw: {session_model.status}, type: {type(session_model.status)}) "
+                        f"for session {session_model.session_id}: {e}")
+            # Fallback to DRAFT if invalid
+            response_status = SessionStatus.DRAFT
+        
         return SessionResponse(
             session_id=session_model.session_id,
-            status=session_model.status,
+            status=response_status,
             created_at=session_model.created_at,
             created_by=session_model.created_by,
             content_blocks=content_blocks,

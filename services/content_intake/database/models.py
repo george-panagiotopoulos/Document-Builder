@@ -1,7 +1,7 @@
 """SQLAlchemy database models for Content Intake Service."""
 
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, DateTime, Enum as SQLEnum, ForeignKey, JSON, Text
+from sqlalchemy import Column, String, Integer, DateTime, Enum as SQLEnum, ForeignKey, JSON, Text, TypeDecorator
 from sqlalchemy.orm import relationship
 import enum
 
@@ -19,6 +19,36 @@ class SessionStatusEnum(str, enum.Enum):
     FAILED = "failed"
 
 
+class SessionStatusEnumType(TypeDecorator):
+    """Custom type decorator to ensure enum values are used."""
+    # Use String instead of native enum to avoid PostgreSQL enum name/value issues
+    impl = String(50)
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        """Convert enum to its value when binding to database."""
+        if value is None:
+            return None
+        if isinstance(value, SessionStatusEnum):
+            return value.value
+        # If it's already a string (enum value), return as-is
+        if isinstance(value, str):
+            return value
+        return str(value)
+
+    def process_result_value(self, value, dialect):
+        """Convert database value back to string (not enum object)."""
+        if value is None:
+            return None
+        # Always return the string value, not the enum object
+        # This prevents issues when converting to Pydantic enums
+        if isinstance(value, SessionStatusEnum):
+            return value.value
+        if isinstance(value, str):
+            return value  # Already a string, return as-is
+        return str(value)
+
+
 class SessionModel(Base):
     """Database model for intake sessions."""
 
@@ -26,7 +56,7 @@ class SessionModel(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(String(100), unique=True, index=True, nullable=False)
-    status = Column(SQLEnum(SessionStatusEnum), default=SessionStatusEnum.DRAFT, nullable=False)
+    status = Column(SessionStatusEnumType, default=SessionStatusEnum.DRAFT.value, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     created_by = Column(String(255), nullable=True)

@@ -17,7 +17,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # PID file to track running services
-PID_FILE=".service_pids"
+PID_FILE="infrastructure/runtime/.service_pids"
 
 echo -e "${BLUE}=====================================${NC}"
 echo -e "${BLUE}  Document Builder Platform${NC}"

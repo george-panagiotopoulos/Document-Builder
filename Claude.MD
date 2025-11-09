@@ -7,30 +7,34 @@
 ### Component A: Content Intake Service
 - **Purpose**: Validates payloads, normalizes text and images, persists session context, and invokes downstream layout generation
 - **Tech Stack**: Python (Flask/FastAPI), PostgreSQL, Object Storage (S3-compatible), JWT authentication
-- **Design Document**: `/ApplicationDesign/ContentIntakeServiceDesign.MD`
+- **Design Document**: `/docs/ApplicationDesign/ContentIntakeServiceDesign.MD`
 
 ### Component B: Gestalt Design Engine
 - **Purpose**: Applies rule-based and AI-assisted design principles to synthesize layout specifications for documents and slides
 - **Tech Stack**: Python (Flask/FastAPI), PostgreSQL (JSONB), OpenAI/Anthropic APIs, NumPy for calculations
-- **Design Document**: `/ApplicationDesign/GestaltDesignEngineDesign.MD`
+- **Design Document**: `/docs/ApplicationDesign/GestaltDesignEngineDesign.MD`
 
 ### Component C: Document Formatter Service
 - **Purpose**: Converts layout specifications into Office-compatible outputs using python-pptx and python-docx
 - **Tech Stack**: Python (Flask/FastAPI), python-docx, python-pptx, Pillow (PIL), Object Storage (S3-compatible)
-- **Design Document**: `/ApplicationDesign/DocumentFormatterServiceDesign.MD`
+- **Design Document**: `/docs/ApplicationDesign/DocumentFormatterServiceDesign.MD`
 
 ### User Agent
 - **Purpose**: Orchestrates the end-to-end workflow by invoking REST APIs across all three services
 - **Tech Stack**: Python (CLI/web app), REST client libraries
-- **Design Document**: `/ApplicationDesign/UserAgentWorkflowDesign.MD`
+- **Design Document**: `/docs/ApplicationDesign/UserAgentWorkflowDesign.MD`
 
 ## Design Documentation Requirements
 
-1. **Always follow the design documents**: Before implementing any feature, carefully read the relevant design document in `/ApplicationDesign/`. The design documents are the source of truth for architecture, APIs, data structures, and algorithms.
+1. **Always follow the design documents**: Before implementing any feature, carefully read the relevant design document in `/docs/ApplicationDesign/`. The design documents are the source of truth for architecture, APIs, data structures, and algorithms.
 
 2. **No deviations without approval**: If you need to deviate from the design documents, ask the user first. Document any approved deviations.
 
-3. **Reference design documents in code**: Include comments referencing specific sections of design documents when implementing complex logic (e.g., "Implements Gestalt Proximity Principle - see GestaltDesignEngineDesign.MD section 6.1").
+3. **Reference design documents in code**: Include comments referencing specific sections of design documents when implementing complex logic (e.g., "Implements Gestalt Proximity Principle - see docs/ApplicationDesign/GestaltDesignEngineDesign.MD section 6.1").
+
+## Documentation Organization
+
+1. **Documentation location**: All documentation files (except README.md and Claude.MD) must be placed in the `/docs` directory. This includes design documents, setup guides, and other documentation files.
 
 ## Technology Stack Management
 
@@ -103,12 +107,12 @@ After starting services with `./start.sh`:
 
 ```bash
 # View all logs in real-time
-tail -f logs/*.log
+tail -f infrastructure/logs/*.log
 
 # View specific service log
-tail -f logs/Content\ Intake\ Service.log
-tail -f logs/Gestalt\ Design\ Engine.log
-tail -f logs/Document\ Formatter.log
+tail -f infrastructure/logs/Content\ Intake\ Service.log
+tail -f infrastructure/logs/Gestalt\ Design\ Engine.log
+tail -f infrastructure/logs/Document\ Formatter.log
 ```
 
 ### Prerequisites
@@ -116,7 +120,7 @@ tail -f logs/Document\ Formatter.log
 Before running services:
 1. **PostgreSQL must be running** (Content Intake Service requirement)
 2. **Environment configured** (copy `.env.example` to `.env` and configure)
-3. **Database migrations applied** (`cd services/content_intake && alembic upgrade head`)
+3. **Database migrations applied** (`alembic -c infrastructure/alembic.ini upgrade head`)
 
 ### Manual Service Management (Not Recommended)
 

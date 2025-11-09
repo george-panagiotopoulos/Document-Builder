@@ -17,10 +17,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # PID file to track running services
-PID_FILE=".service_pids"
+PID_FILE="infrastructure/runtime/.service_pids"
+mkdir -p "$(dirname "$PID_FILE")"
 
 # Log directory
-LOG_DIR="logs"
+LOG_DIR="infrastructure/logs"
 mkdir -p "$LOG_DIR"
 
 echo -e "${BLUE}=====================================${NC}"
@@ -44,16 +45,18 @@ if [ -f "$PID_FILE" ]; then
     rm -f "$PID_FILE"
 fi
 
-# Load environment variables from .env if it exists
-if [ -f ".env" ]; then
-    echo -e "${GREEN}✓${NC} Loading configuration from .env"
-    export $(cat .env | grep -v '^#' | xargs)
-else
-    echo -e "${YELLOW}⚠️  Warning: .env file not found${NC}"
-    echo -e "${YELLOW}   Using default configuration${NC}"
-    echo -e "${YELLOW}   Copy .env.example to .env and configure for production${NC}"
+# Load environment variables from .env (REQUIRED)
+if [ ! -f ".env" ]; then
+    echo -e "${RED}✗${NC} ERROR: .env file not found${NC}"
+    echo -e "${RED}   .env file is REQUIRED - no hardcoded defaults for security${NC}"
+    echo -e "${YELLOW}   Copy .env.example to .env and configure:${NC}"
+    echo -e "${YELLOW}   cp .env.example .env${NC}"
     echo ""
+    exit 1
 fi
+
+echo -e "${GREEN}✓${NC} Loading configuration from .env"
+export $(cat .env | grep -v '^#' | xargs)
 
 # Set default ports if not defined
 CONTENT_INTAKE_PORT="${CONTENT_INTAKE_PORT:-8001}"
@@ -125,11 +128,11 @@ echo -e "  • Gestalt Engine:      http://localhost:${GESTALT_ENGINE_PORT}/docs
 echo -e "  • Document Formatter:  http://localhost:${DOCUMENT_FORMATTER_PORT}/docs"
 echo ""
 echo -e "${BLUE}Logs:${NC}"
-echo -e "  • Content Intake:      tail -f logs/Content\\ Intake\\ Service.log"
-echo -e "  • Gestalt Engine:      tail -f logs/Gestalt\\ Design\\ Engine.log"
-echo -e "  • Document Formatter:  tail -f logs/Document\\ Formatter.log"
+echo -e "  • Content Intake:      tail -f infrastructure/logs/Content\\ Intake\\ Service.log"
+echo -e "  • Gestalt Engine:      tail -f infrastructure/logs/Gestalt\\ Design\\ Engine.log"
+echo -e "  • Document Formatter:  tail -f infrastructure/logs/Document\\ Formatter.log"
 echo ""
 echo -e "${BLUE}Management:${NC}"
 echo -e "  • Stop services:       ./stop.sh"
-echo -e "  • View all logs:       tail -f logs/*.log"
+echo -e "  • View all logs:       tail -f infrastructure/logs/*.log"
 echo ""

@@ -82,14 +82,8 @@ GRANT ALL PRIVILEGES ON DATABASE document_builder TO docbuilder;
 ### 5. Run Database Migrations
 
 ```bash
-# Navigate to Content Intake Service
-cd services/content_intake
-
-# Run Alembic migrations
-alembic upgrade head
-
-# Return to root directory
-cd ../..
+# Run Alembic migrations (from project root)
+alembic -c infrastructure/alembic.ini upgrade head
 ```
 
 ### 6. Start the Services
@@ -119,7 +113,7 @@ uvicorn services.document_formatter.main:app --reload --port ${DOCUMENT_FORMATTE
 #### Option B: Start All Services with Docker Compose
 
 ```bash
-docker-compose -f docker/docker-compose.yml up
+docker-compose -f infrastructure/docker/docker-compose.yml up
 ```
 
 ### 7. Verify Installation
@@ -169,18 +163,17 @@ pytest tests/content_intake/
 ### Database Management
 
 ```bash
-# Create a new migration
-cd services/content_intake
-alembic revision --autogenerate -m "Description of changes"
+# Create a new migration (from project root)
+alembic -c infrastructure/alembic.ini revision --autogenerate -m "Description of changes"
 
 # Apply migrations
-alembic upgrade head
+alembic -c infrastructure/alembic.ini upgrade head
 
 # Rollback last migration
-alembic downgrade -1
+alembic -c infrastructure/alembic.ini downgrade -1
 
 # View migration history
-alembic history
+alembic -c infrastructure/alembic.ini history
 ```
 
 ## Configuration Details
@@ -252,17 +245,17 @@ CONTENT_INTAKE_PORT=8011
 **Error: "Target database is not up to date"**
 ```bash
 # Check current migration status
-alembic current
+alembic -c infrastructure/alembic.ini current
 
 # Apply pending migrations
-alembic upgrade head
+alembic -c infrastructure/alembic.ini upgrade head
 ```
 
 **Error: "Can't locate revision"**
 ```bash
 # Reset migration history (development only!)
-alembic downgrade base
-alembic upgrade head
+alembic -c infrastructure/alembic.ini downgrade base
+alembic -c infrastructure/alembic.ini upgrade head
 ```
 
 ### Module Import Errors
@@ -312,18 +305,18 @@ For production deployment:
    - Set up logging aggregation
    - Configure health checks
 
-See `docker/docker-compose.yml` and `k8s/` directory for container orchestration examples.
+See `infrastructure/docker/docker-compose.yml` and `infrastructure/k8s/` directory for container orchestration examples.
 
 ## Next Steps
 
-- Read the architecture overview in `ApplicationDesign/ApplicationDesign.MD`
-- Review service-specific design documents in `ApplicationDesign/`
+- Read the architecture overview in `ApplicationDesign/ApplicationDesign.MD` (in this docs directory)
+- Review service-specific design documents in `ApplicationDesign/` (in this docs directory)
 - Explore the API documentation at http://localhost:8001/docs
 - Try creating a session via the UI at http://localhost:8001/
 
 ## Getting Help
 
-- Check existing documentation in `ApplicationDesign/`
-- Review service-specific README files (README_UI.md, README_DATABASE.md)
+- Check existing documentation in `ApplicationDesign/` (in this docs directory)
+- Review service-specific README files (README_UI.md, README_DATABASE.md in this docs directory)
 - Check the troubleshooting section above
 - Review application logs for detailed error messages
