@@ -15,6 +15,10 @@ The Document Builder platform produces professional-grade Word and PowerPoint ou
 
 ## Getting Started
 
+**For detailed setup instructions, see [SETUP.md](SETUP.md).**
+
+Quick start:
+
 1. **Review the design**: Read the relevant document in `ApplicationDesign/` before writing any code.
 2. **Set up environment**:
    ```bash
@@ -22,9 +26,26 @@ The Document Builder platform produces professional-grade Word and PowerPoint ou
    source .venv/bin/activate
    pip install -r requirements.txt
    cp .env.example .env
+   # Edit .env with your configuration
    ```
-3. **Configuration**: Populate `.env` based on `.env.example`. Do not commit actual secrets.
-4. **Development workflow**:
+3. **Set up database**:
+   ```bash
+   # Start PostgreSQL (Docker)
+   docker run --name docbuilder-postgres \
+     -e POSTGRES_USER=docbuilder \
+     -e POSTGRES_PASSWORD=changeme \
+     -e POSTGRES_DB=document_builder \
+     -p 5432:5432 -d postgres:14
+
+   # Run migrations
+   cd services/content_intake && alembic upgrade head
+   ```
+4. **Start services**:
+   ```bash
+   # Content Intake Service
+   uvicorn services.content_intake.main:app --reload --port 8001
+   ```
+5. **Development workflow**:
    - This project uses **Git worktrees** for parallel development. See "Git Worktree Workflow" section below.
    - Implement components within `services/` following their design documents.
    - Add tests under `tests/` with structure mirroring service modules.

@@ -8,6 +8,7 @@ class Settings(BaseSettings):
 
     SERVICE_NAME: str = "gestalt-design-engine"
     SERVICE_VERSION: str = "1.0.0"
+    PORT: int = 8002
     LOG_LEVEL: str = "INFO"
     CORS_ORIGINS: list[str] = ["*"]
 
@@ -19,6 +20,7 @@ class Settings(BaseSettings):
         """Pydantic configuration."""
 
         env_file = ".env"
+        env_file_encoding = "utf-8"
         case_sensitive = True
 
 

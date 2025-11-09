@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     # Service configuration
     SERVICE_NAME: str = "content-intake-service"
     SERVICE_VERSION: str = "1.0.0"
+    PORT: int = 8001
     LOG_LEVEL: str = "INFO"
 
     # CORS configuration
@@ -22,11 +23,11 @@ class Settings(BaseSettings):
     # Database configuration - PostgreSQL
     DATABASE_URL: str = "postgresql://docbuilder:changeme@localhost:5432/document_builder"
 
-    # Object storage configuration (placeholder)
+    # Object storage configuration
     STORAGE_BUCKET: str = "document-builder-assets"
 
     # Downstream services
-    GESTALT_ENGINE_URL: str = "https://gestalt.document-builder.internal/v1"
+    GESTALT_ENGINE_URL: str = "http://localhost:8002/v1"
 
     # Rate limiting
     MAX_REQUESTS_PER_MINUTE: int = 30
@@ -35,6 +36,7 @@ class Settings(BaseSettings):
         """Pydantic configuration."""
 
         env_file = ".env"
+        env_file_encoding = "utf-8"
         case_sensitive = True
 
 

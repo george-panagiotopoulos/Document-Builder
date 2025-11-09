@@ -83,15 +83,28 @@ A modern web interface for the Content Intake Service, providing a user-friendly
 pip install -r requirements.txt
 ```
 
-### 2. Start the Service
+### 2. Configure Environment
 
 ```bash
-uvicorn services.content_intake.main:app --reload --port 8001
+# Copy environment template
+cp .env.example .env
+
+# Edit .env and configure CONTENT_INTAKE_PORT if different from 8001
 ```
 
-### 3. Access the UI
+### 3. Start the Service
 
-Open your browser to:
+```bash
+# Using default port (8001)
+uvicorn services.content_intake.main:app --reload --port 8001
+
+# Or use PORT from environment
+uvicorn services.content_intake.main:app --reload --port ${CONTENT_INTAKE_PORT:-8001}
+```
+
+### 4. Access the UI
+
+Open your browser to (replace 8001 with your configured port):
 - **Home**: http://localhost:8001/
 - **New Session**: http://localhost:8001/sessions/new
 - **API Docs**: http://localhost:8001/docs
