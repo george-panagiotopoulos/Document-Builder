@@ -29,3 +29,6 @@ coverage/
 
 # Artifacts
 artifacts/
+
+# Git worktrees
+worktrees/
