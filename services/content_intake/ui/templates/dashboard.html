@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Document Builder{% endblock %}
+
+{% block content %}
+<h2>Session Dashboard</h2>
+
+<div class="card">
+    <div class="card-header">Recent Sessions</div>
+    <div id="sessions-list">
+        <div class="spinner"></div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Statistics</div>
+    <div class="grid grid-3">
+        <div>
+            <h3 id="total-sessions">0</h3>
+            <p>Total Sessions</p>
+        </div>
+        <div>
+            <h3 id="active-sessions">0</h3>
+            <p>Active Sessions</p>
+        </div>
+        <div>
+            <h3 id="completed-sessions">0</h3>
+            <p>Completed</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadDashboard() {
+    // Note: This would require a new API endpoint to list all sessions
+    // For now, showing a placeholder
+    const container = document.getElementById('sessions-list');
+    container.innerHTML = '<p class="text-secondary">Session listing feature coming soon. Use direct session URLs for now.</p>';
+
+    // Update statistics
+    document.getElementById('total-sessions').textContent = '0';
+    document.getElementById('active-sessions').textContent = '0';
+    document.getElementById('completed-sessions').textContent = '0';
+}
+
+document.addEventListener('DOMContentLoaded', loadDashboard);
+</script>
+{% endblock %}

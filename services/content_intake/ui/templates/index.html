@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Home - Document Builder{% endblock %}
+
+{% block content %}
+<h2>Welcome to Content Intake Service</h2>
+
+<div class="grid grid-2">
+    <div class="card">
+        <div class="card-header">📝 Create New Session</div>
+        <p>Submit content blocks, images, and design intent to create a new intake session.</p>
+        <a href="/sessions/new" class="btn btn-primary">Get Started</a>
+    </div>
+
+    <div class="card">
+        <div class="card-header">📊 View Dashboard</div>
+        <p>View and manage existing intake sessions and their status.</p>
+        <a href="/dashboard" class="btn btn-secondary">View Dashboard</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">How It Works</div>
+    <ol style="margin-left: 1.5rem; margin-top: 1rem;">
+        <li><strong>Create Session:</strong> Submit your content blocks, images, and design preferences</li>
+        <li><strong>Normalization:</strong> Content is validated and normalized automatically</li>
+        <li><strong>Submit for Layout:</strong> Trigger layout generation in the Gestalt Design Engine</li>
+        <li><strong>Download Artifacts:</strong> Retrieve generated layout specifications</li>
+    </ol>
+</div>
+
+<div class="card">
+    <div class="card-header">API Information</div>
+    <p>The Content Intake Service provides REST APIs for programmatic access:</p>
+    <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+        <li><code>POST /v1/intake/sessions</code> - Create intake session</li>
+        <li><code>GET /v1/intake/sessions/{id}</code> - Retrieve session</li>
+        <li><code>POST /v1/intake/sessions/{id}/submit</code> - Submit for layout</li>
+        <li><code>GET /v1/intake/sessions/{id}/artifacts</code> - List artifacts</li>
+    </ul>
+    <a href="/docs" class="btn btn-outline" style="margin-top: 1rem;">View Full API Documentation</a>
+</div>
+
+<div class="card">
+    <div class="card-header">System Status</div>
+    <div class="grid grid-3">
+        <div>
+            <p><strong>Service Status:</strong></p>
+            <p><span class="status-badge status-ready">Healthy</span></p>
+        </div>
+        <div>
+            <p><strong>Database:</strong></p>
+            <p><span class="status-badge status-ready">Connected</span></p>
+        </div>
+        <div>
+            <p><strong>Version:</strong></p>
+            <p>v1.0.0</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
